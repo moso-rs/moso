@@ -1,0 +1,144 @@
+[package]
+name = "moso-auth"
+description = "Moso's authentication battery: sessions, passwords, JWT, API keys, OAuth2/OIDC, passkeys, TOTP and the account-lifecycle flows."
+categories = ["authentication", "web-programming"]
+keywords = ["moso", "auth", "session", "oauth2", "passkey"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# Passkeys / WebAuthn, OFF by default (ADR-0015). `webauthn-rs-core` links
+# OpenSSL and every crate in its subtree is MPL-2.0, so a default build of this
+# battery must pull none of it: the feature is what confines the C toolchain and
+# the licence exceptions to a project that opts in. The `moso` facade re-exposes
+# this as its own off-by-default `passkeys` feature; the `auth` feature must
+# never imply it.
+#
+# `webauthn-authenticator-rs` is the dev-only virtual authenticator the ceremony
+# round trip runs against. Cargo forbids optional *dev*-dependencies, so it is
+# an optional normal dependency enabled by this feature and referenced only from
+# `#[cfg(test)]` code inside the feature-gated `webauthn` module — keeping it out
+# of every default build, test builds included, which a plain dev-dependency
+# could not do.
+passkeys = ["dep:webauthn-rs", "dep:webauthn-authenticator-rs"]
+
+[dependencies]
+# `Error`, `Guard`, `Dependency`, `RequestCtx`, `Router`, `SecretString` and the
+# bounded blocking pool a password hash runs on.
+moso-core.workspace = true
+# `Id<E>`, `Email`, `Password`, `Url` and `Schema` — every request and response
+# body in `routes()` is a `Schema` type.
+moso-schema.workspace = true
+# `Guard::describe` and `Dependency::describe` contribute the security scheme
+# and the 401 to each operation.
+moso-openapi.workspace = true
+# `DatabaseBackend<U>` loads a user entity, and the credential/passkey/API-key
+# tables are entities (`xtask/allow/dep-edges.toml`: auth -> orm).
+moso-orm.workspace = true
+# The session store is a `KvStore` (auth -> kv).
+moso-kv.workspace = true
+
+bytes.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros", "net", "io-util"] }
+tracing.workspace = true
+uuid.workspace = true
+argon2 = { version = "0.5", features = ["std"] }
+base64 = "0.22"
+sha2 = "0.10"
+hmac = "0.12"
+subtle = "2.6"
+getrandom = "0.3"
+cookie = { version = "0.18", features = ["percent-encode"] }
+
+# ── cryptography for JWT, API keys and TOTP ─────────────────────────────────
+# Ed25519, ECDSA P-256 and RSA PKCS#1 v1.5 signing and verification; the SHA-256
+# an API-key secret and a refresh token are stored as; the HMAC-SHA1 a TOTP code
+# is; and the CSPRNG behind every token this crate mints. `ring` is already in
+# the graph via sqlx's rustls-ring, so it costs no additional crate, and one
+# audited implementation of constant-time arithmetic beats five.
+ring.workspace = true
+
+# ── outbound HTTP (`RemoteJwks`, and the OAuth token exchange) ──────────────
+# `reqwest` is deliberately not used: reqwest 0.13's `rustls` feature pulls
+# `aws-lc-rs` and `rustls-platform-verifier`, and a second rustls crypto
+# provider in a process that has already installed ring's (via sqlx) is a
+# runtime panic, not a compile error. `jwks::get` writes its single `GET`
+# straight onto the socket and needs only the TLS crates; `oauth::http` uses
+# hyper's client, which is why the `client` feature is added here on top of the
+# workspace's server-side features (the workspace rule permits adding).
+hyper = { workspace = true, features = ["client"] }
+hyper-util.workspace = true
+http-body-util.workspace = true
+rustls.workspace = true
+tokio-rustls.workspace = true
+rustls-pki-types.workspace = true
+webpki-roots.workspace = true
+
+# ── passkeys ────────────────────────────────────────────────────────────────
+# The WebAuthn ceremonies (`docs/03-batteries/30-auth.md`: "via webauthn-rs").
+# Re-implementing CBOR attestation parsing and COSE signature verification would
+# be a liability, not a feature. The three features are all load-bearing and all
+# named `danger-*` for the same reason — they hand out internals — so each one
+# has a reason:
+#
+#   danger-allow-state-serialisation  the ceremony state is `Serialize`, which
+#                                     is what lets it live in a session store
+#                                     rather than in process memory. Without it
+#                                     passkeys only work on a single-process
+#                                     deployment with sticky sessions.
+#   danger-credential-internals       `Credential` is the storage schema; Moso
+#                                     stores it and overrides its counter from
+#                                     the authoritative column on the way back.
+#   conditional-ui                    the discoverable (usernameless) flow, and
+#                                     the autofill variant of it.
+#
+# NOTE for whoever packages this: `webauthn-rs-core` links OpenSSL, so a build
+# of `moso-auth` *with the `passkeys` feature* needs a C toolchain and libssl
+# headers. Off by default (ADR-0015): the whole subtree is gated behind
+# `passkeys`, so a default build pulls none of it.
+webauthn-rs = { version = "0.5.5", optional = true, features = [
+    "danger-allow-state-serialisation",
+    "danger-credential-internals",
+    "conditional-ui",
+] }
+# The virtual authenticator the passkey round trip runs against
+# (`docs/03-batteries/30-auth.md` acceptance criterion 8). It is the reference
+# soft authenticator from the same project, so a ceremony that passes here is one
+# a browser will also complete. Used only from `#[cfg(test)]` code, but declared
+# here rather than in `[dev-dependencies]` because it must be optional — Cargo
+# forbids optional dev-dependencies — and it must not be compiled unless
+# `passkeys` is on, or a default `cargo test` would drag OpenSSL in through the
+# back door.
+webauthn-authenticator-rs = { version = "0.5.5", optional = true, features = [
+    "softpasskey",
+] }
+
+# ── OAuth2 ──────────────────────────────────────────────────────────────────
+# An authorization URL's query string and a token endpoint's request body are
+# both `application/x-www-form-urlencoded`, and hand-rolling the escaping is how
+# a `+` in a scope becomes a space.
+form_urlencoded.workspace = true
+tower = { version = "0.5", features = ["util"] }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "io-util"] }
+serde_json.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

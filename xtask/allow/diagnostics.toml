@@ -1,0 +1,59 @@
+# The diagnostics allowlist — read by `xtask check-diagnostics`.
+#
+# `docs/04-devex/41-diagnostics.md`: every public trait a user can fail to
+# satisfy carries a hand-written `#[diagnostic::on_unimplemented]`, at 100%,
+# CI-enforced. Three tables qualify that:
+#
+#   [[exempt]]          the trait needs no message, and the reason says why. This
+#                       silences the gate. Reserve it for traits no user can
+#                       name.
+#   [[known_gap]]       the trait should have a message and does not. This does
+#                       NOT silence the gate — `check-diagnostics` still exits
+#                       non-zero. It exists so the failure reads as a work item
+#                       with a fix rather than as a surprise, and so a reviewer
+#                       can see that the gap was noticed rather than introduced.
+#   [[blanket_exempt]]  a blanket impl that is deliberately left without
+#                       `#[diagnostic::do_not_recommend]`, keyed by
+#                       `crate-name::TraitName`. The attribute is not always an
+#                       improvement, and this is where the measurement that says
+#                       so is recorded. This silences that half of the gate.
+#
+# Every entry needs a non-empty reason; the gate refuses to run without one.
+
+# ── Genuinely exempt ────────────────────────────────────────────────────────
+
+[[exempt]]
+path = "moso_core::config::secret::sealed::Sealed"
+reason = """
+The sealing half of the sealed-trait pattern, declared in a private `sealed`
+module. No user can name it, so no user can be told anything useful about it;
+the message that matters is on `SecretValue`, which is the trait they were
+trying to satisfy. rustdoc keeps it in the index because it appears in a public
+bound, not because it is reachable.
+"""
+
+# ── Recorded gaps — these still fail the gate ───────────────────────────────
+#
+# None. The three found by the first run of this gate on 2026-07-30 —
+# `moso_core::router::DynGuard`, `moso_schema::json_schema::IntoNumber` and
+# `moso_test::response::IntoStatus` — were written on the same day and the
+# entries removed. Coverage is 100% of the traits this gate can see; leave it
+# that way, and if a gap is genuinely unavoidable, record it here rather than
+# deleting the trait from the gate's view.
+
+# ── Blanket impls deliberately left unmarked ────────────────────────────────
+
+[[blanket_exempt]]
+path = "moso-core::HandlerFuture"
+reason = """
+`impl<F: Future<Output = Response> + Send + 'static> HandlerFuture for F`, in
+crates/moso-core/src/handler.rs. The bound users actually fail here is `Send` on
+a coroutine, and for that rustc reports the *nested* obligation: "future is not
+`Send` as this value is used across an await", with the binding, its type and the
+offending `.await` all underlined. `do_not_recommend` suppresses that in favour
+of one generic line naming an unnameable async-block type, which is strictly
+worse. Measured on rustc 1.97.1; the snapshot that will notice if the compiler's
+behaviour changes is `crates/moso-ui-tests/tests/ui/handler/non_send_future.rs`.
+The trait's own `on_unimplemented` covers the other two ways the bound fails (a
+future that borrows the request, and one whose output is not a `Response`).
+"""

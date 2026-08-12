@@ -1,0 +1,68 @@
+[package]
+name = "moso-orm"
+description = "Moso's ORM: entities, shape-stable queries, N+1-safe relations, transactions and pooling over PostgreSQL and SQLite."
+categories = ["database", "web-programming"]
+keywords = ["moso", "orm", "postgres", "sqlite", "sqlx"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["postgres", "sqlite", "tls"]
+# The two backends. Both are on by default because `Backend` is a runtime enum
+# and a `DATABASE_URL` decides which one a process opens; turning one off is for
+# a deployment that wants a smaller binary, not for a compile-time choice about
+# which SQL to write.
+postgres = []
+sqlite = []
+# TLS for the PostgreSQL driver. On by default: every managed PostgreSQL
+# (RDS, Cloud SQL, Neon, Supabase) refuses a plaintext connection, so a default
+# without it turns "it works locally" into a deployment-day failure.
+tls = []
+
+[dependencies]
+# Construction goes through the sealed facade and nothing else (ADR-0005).
+moso-sql.workspace = true
+# `Id<E>`, `Email`, `Slug`, `Cursor` and the constrained types are column types
+# users declare in entities, and `SqlType` is implemented for them here.
+moso-schema.workspace = true
+# `RequestTx` is a `Dependency`, and a `moso_orm::Error` becomes a
+# `moso_core::Error` (non-negotiable N7: a unique violation is a 409 with a
+# field pointer).
+moso-core.workspace = true
+# `moso-orm-macros` is deliberately NOT a dependency. Decision D6 says generated
+# code resolves against `::moso::__private::*` and nothing else, so a
+# `#[derive(Entity)]` reached through `moso_orm` could not compile anyway — the
+# facade is the only place the derives work, and it is where they are
+# re-exported. Keeping the edge out also keeps dependency rule 5 (declared
+# battery edges, `xtask/allow/dep-edges.toml`) green without an allowlist entry.
+
+# Execution. See the note in `[workspace.dependencies]`: sqlx is deliberately
+# *not* sealed, because `Db::pool()` is the documented escape hatch (N8).
+sqlx.workspace = true
+
+chrono.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+moso-sql.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

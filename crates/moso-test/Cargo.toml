@@ -1,0 +1,113 @@
+[package]
+name = "moso-test"
+description = "Test harness for Moso applications: TestApp, TestClient and diffing assertions."
+categories = ["development-tools::testing", "web-programming"]
+keywords = ["moso", "testing", "http", "integration"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["server"]
+# `server` additionally binds a real ephemeral TCP port and drives the app over
+# a real socket with reqwest. Without it, TestClient only calls the composed
+# tower Service in-process (no socket, no client, faster). Both paths exercise
+# the same middleware stack.
+#
+# The harness only ever talks plaintext to 127.0.0.1, so it asks reqwest for no
+# TLS of its own — but cargo unifies features across the graph, and a workspace
+# that also contains `moso-mail` or `moso-storage` turns reqwest's
+# `rustls-no-provider` on for everybody. reqwest then builds a rustls connector
+# even for a plaintext client, and *panics* unless a process-default crypto
+# provider was installed first. `rustls` is therefore a dependency of this
+# feature: it costs nothing (any build that can trigger the panic already
+# compiled it) and it is what lets the harness install ring before the client is
+# built. See `start_bound` in src/app.rs.
+server = ["dep:reqwest", "dep:rustls"]
+# `db` adds the per-test database strategies (docs/04-devex/43-testing.md),
+# `#[derive(Factory)]`'s runtime and `assert_queries!`. It is OFF by default
+# because it pulls in sqlx, and `sqlite-bundled` compiles SQLite's amalgamation
+# from C — several minutes that a harness user who only tests HTTP must not pay.
+# Turn it on in `[dev-dependencies]`:
+#   moso-test = { version = "0.1", features = ["db"] }
+db = ["dep:moso-orm", "dep:moso-sql", "dep:sqlx"]
+# Each battery feature adds one `TestApp` accessor — `kv()`, `mail()`, `jobs()`,
+# `storage()` — that hands a test the very handle the application under test was
+# built with, so an assertion can read it directly rather than through HTTP. All
+# four are OFF by default and pull only their own battery crate with its lean,
+# service-free default backend (an in-process map, the console/memory mailer, the
+# in-memory queue, local/memory storage); none pulls a database driver, which is
+# why they are separate from `db`. `mail` additionally brings `capture_mail`,
+# `assert_sent` and `assert_none_sent`, wired onto `moso-mail`'s `MemoryMailer`.
+kv = ["dep:moso-kv"]
+mail = ["dep:moso-mail"]
+# `jobs` is opt-in like `db`, and like `db` it accepts `moso-jobs`'s default
+# backends (which include the Postgres queue and its `sqlx` compile) — a harness
+# user who wants to read the queue handle already runs jobs against a real broker.
+jobs = ["dep:moso-jobs"]
+storage = ["dep:moso-storage"]
+
+[dependencies]
+# `moso-core` is a direct dependency, not only a transitive one through the
+# facade, so the harness can name `moso_core::di::DependencyOverrides` — the
+# request-scoped override table `TestAppBuilder::override_dependency` writes and
+# `RequestCtx::depends` reads. The `test` feature is what compiles that table in;
+# the facade already turns it on down the same graph, so this adds no code a
+# `moso` dependency did not already bring.
+moso-core = { workspace = true, features = ["test"] }
+# `test` is what compiles in `moso_core::di::DependencyOverrides`, the table
+# `TestAppBuilder::override_dependency` writes into and `RequestCtx::depends`
+# reads. It is safe to turn on *here* rather than in the user's own
+# `[dev-dependencies]` because cargo's v2 resolver (this workspace is on v3)
+# does not unify features enabled through a dev-dependency into a build that is
+# not building dev-dependencies: `cargo build --release` of an application that
+# depends on `moso` normally and `moso-test` for tests compiles `moso-core`
+# WITHOUT `test`. `crates/moso-test/tests/feature_unification.rs` proves it by
+# resolving that exact graph and reading the enabled features back.
+moso = { workspace = true, features = ["test"] }
+
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+reqwest = { workspace = true, optional = true }
+rustls = { workspace = true, optional = true }
+serde.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+tokio = { workspace = true, features = ["test-util"] }
+tower.workspace = true
+# The harness installs its own `tracing::Subscriber` so that a failed assertion
+# can print the server-side log lines for that request.
+tracing.workspace = true
+# `tracing` does not re-export `tracing_core::span::Current`, which
+# `Subscriber::current_span` has to return. Already in the tree — `tracing`
+# depends on it — so this costs no extra compilation. NOTE FOR THE INTEGRATOR:
+# every other third-party dependency is declared in `[workspace.dependencies]`;
+# this one is declared here because promoting it means editing the root manifest,
+# which is shared. Move it up when convenient.
+tracing-core = "0.1.36"
+url.workspace = true
+moso-orm = { workspace = true, optional = true }
+moso-sql = { workspace = true, optional = true }
+sqlx = { workspace = true, optional = true }
+moso-kv = { workspace = true, optional = true }
+moso-mail = { workspace = true, optional = true }
+moso-jobs = { workspace = true, optional = true }
+moso-storage = { workspace = true, optional = true }
+
+[dev-dependencies]
+moso.workspace = true
+# Only the SSE doctests and tests use it, to build the `Stream` an `Sse<S>`
+# handler returns — the harness itself needs no stream library.
+futures-util.workspace = true
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
+ulid.workspace = true

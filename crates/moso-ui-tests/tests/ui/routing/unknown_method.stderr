@@ -1,0 +1,8 @@
+error: unknown HTTP method `PSOT`
+
+       help: did you mean `PUT`?
+       help: methods are `GET`, `POST`, `PUT`, `PATCH`, `DELETE`, `HEAD`, `OPTIONS`, `TRACE` and `ANY`
+  --> tests/ui/routing/unknown_method.rs
+   |
+   |         PSOT "/users" => create,
+   |         ^^^^

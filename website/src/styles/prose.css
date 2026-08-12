@@ -1,0 +1,448 @@
+/*
+ * Long-form content.
+ *
+ * Everything here styles HTML produced by the markdown pipeline, so the
+ * selectors are element selectors under `.prose` rather than classes. The
+ * exceptions are the three things the pipeline does add classes for: callouts,
+ * heading anchors, and the code frame that the browser wraps around each
+ * highlighted block.
+ */
+
+.prose {
+	font-size: var(--text-md);
+	line-height: var(--leading-normal);
+	color: var(--ink);
+}
+
+/* ---------------------------------------------------------------- rhythm -- */
+
+.prose > * + * {
+	margin-top: var(--space-5);
+}
+
+.prose > * + h2 {
+	margin-top: var(--space-12);
+}
+
+.prose > * + h3 {
+	margin-top: var(--space-8);
+}
+
+.prose > * + h4 {
+	margin-top: var(--space-6);
+}
+
+/* --------------------------------------------------------------- headings -- */
+
+.prose h2,
+.prose h3,
+.prose h4 {
+	position: relative;
+	color: var(--ink);
+	letter-spacing: var(--tracking-snug);
+	scroll-margin-top: calc(var(--topbar-height) + var(--space-6));
+	text-wrap: balance;
+}
+
+.prose h2 {
+	font-size: var(--text-xl);
+	font-weight: var(--weight-semibold);
+	line-height: var(--leading-snug);
+	padding-bottom: var(--space-2);
+	border-bottom: 1px solid var(--line);
+}
+
+.prose h3 {
+	font-size: var(--text-lg);
+	font-weight: var(--weight-semibold);
+	line-height: var(--leading-snug);
+}
+
+.prose h4 {
+	font-size: var(--text-md);
+	font-weight: var(--weight-semibold);
+}
+
+.heading-anchor {
+	position: absolute;
+	left: -1.1em;
+	width: 1.1em;
+	color: var(--accent);
+	opacity: 0;
+	text-align: left;
+	font-weight: var(--weight-normal);
+	transition: opacity var(--duration-fast) var(--ease);
+}
+
+.prose h2:hover .heading-anchor,
+.prose h3:hover .heading-anchor,
+.prose h4:hover .heading-anchor,
+.heading-anchor:focus-visible {
+	opacity: 1;
+}
+
+/* ------------------------------------------------------------------ text -- */
+
+.prose p {
+	text-wrap: pretty;
+}
+
+.prose strong {
+	font-weight: var(--weight-semibold);
+	color: var(--ink);
+}
+
+.prose a {
+	color: var(--accent);
+	text-decoration: underline;
+	text-underline-offset: 2.5px;
+	text-decoration-thickness: 1px;
+	text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+	transition: text-decoration-color var(--duration-fast) var(--ease);
+}
+
+.prose a:hover {
+	text-decoration-color: var(--accent);
+}
+
+.prose a[data-external]::after {
+	content: '↗';
+	display: inline-block;
+	margin-left: 0.15em;
+	font-size: 0.85em;
+	text-decoration: none;
+	vertical-align: 0.08em;
+}
+
+.prose hr {
+	height: 1px;
+	border: none;
+	background: var(--line);
+	margin: var(--space-12) 0;
+}
+
+/* ----------------------------------------------------------------- lists -- */
+
+.prose ul,
+.prose ol {
+	padding-left: var(--space-6);
+}
+
+.prose ul {
+	list-style: disc;
+}
+
+.prose ol {
+	list-style: decimal;
+}
+
+.prose li::marker {
+	color: var(--ink-subtle);
+}
+
+.prose li + li {
+	margin-top: var(--space-2);
+}
+
+.prose li > ul,
+.prose li > ol {
+	margin-top: var(--space-2);
+}
+
+.prose li > p + p {
+	margin-top: var(--space-3);
+}
+
+/* Task lists, which GFM renders as checkbox inputs. */
+.prose li:has(> input[type='checkbox']) {
+	list-style: none;
+	margin-left: calc(var(--space-6) * -1);
+}
+
+.prose input[type='checkbox'] {
+	margin-right: var(--space-2);
+	accent-color: var(--accent);
+}
+
+/* ------------------------------------------------------------ inline code -- */
+
+.prose :not(pre) > code {
+	font-family: var(--font-mono);
+	font-size: 0.875em;
+	padding: 0.12em 0.36em;
+	border-radius: var(--radius-sm);
+	background: var(--inline-code-surface);
+	color: var(--inline-code-ink);
+	white-space: nowrap;
+	word-break: keep-all;
+}
+
+.prose a > code {
+	color: inherit;
+	background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.prose h2 > code,
+.prose h3 > code,
+.prose h4 > code {
+	font-size: 0.92em;
+	background: none;
+	padding: 0;
+	color: inherit;
+}
+
+/* ------------------------------------------------------------ code blocks -- */
+
+.code-frame {
+	position: relative;
+	border: 1px solid var(--code-line);
+	border-radius: var(--radius-lg);
+	background: var(--code-surface);
+	overflow: hidden;
+}
+
+.code-frame-bar {
+	display: flex;
+	align-items: center;
+	padding: var(--space-2) var(--space-4);
+	border-bottom: 1px solid var(--code-line);
+	background: var(--code-bar);
+}
+
+.code-frame-name {
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	color: var(--ink-subtle);
+}
+
+.prose pre {
+	margin: 0;
+	padding: var(--space-4) var(--space-5);
+	overflow-x: auto;
+	font-family: var(--font-mono);
+	font-size: var(--text-sm);
+	line-height: 1.62;
+	tab-size: 4;
+	background: var(--code-surface);
+	scrollbar-width: thin;
+}
+
+.prose pre code {
+	display: block;
+	min-width: fit-content;
+	font-family: inherit;
+	font-size: inherit;
+	background: none;
+	padding: 0;
+	white-space: pre;
+}
+
+/*
+ * Shiki emits both themes as custom properties on every token, which is what
+ * lets the theme switch without re-highlighting and without shipping a second
+ * copy of every code block.
+ */
+.prose .shiki,
+.prose .shiki span {
+	color: var(--sx-light);
+	background-color: transparent;
+}
+
+:root[data-theme='dark'] .prose .shiki,
+:root[data-theme='dark'] .prose .shiki span {
+	color: var(--sx-dark);
+}
+
+.code-copy {
+	position: absolute;
+	top: var(--space-2);
+	right: var(--space-2);
+	padding: 3px 8px;
+	border: 1px solid var(--code-line);
+	border-radius: var(--radius-sm);
+	background: var(--code-bar);
+	color: var(--ink-subtle);
+	font-size: var(--text-xs);
+	opacity: 0;
+	transition:
+		opacity var(--duration) var(--ease),
+		color var(--duration-fast) var(--ease);
+}
+
+.code-frame.has-title .code-copy {
+	top: 6px;
+}
+
+.code-frame:hover .code-copy,
+.code-copy:focus-visible {
+	opacity: 1;
+}
+
+.code-copy:hover {
+	color: var(--ink);
+}
+
+.code-copy.is-done {
+	color: var(--accent);
+	border-color: var(--accent-line);
+}
+
+/* ---------------------------------------------------------------- tables -- */
+
+.prose table {
+	display: block;
+	width: 100%;
+	overflow-x: auto;
+	border-collapse: collapse;
+	font-size: var(--text-base);
+	scrollbar-width: thin;
+}
+
+.prose thead {
+	border-bottom: 1px solid var(--line-strong);
+}
+
+.prose th {
+	text-align: left;
+	font-weight: var(--weight-semibold);
+	font-size: var(--text-sm);
+	letter-spacing: var(--tracking-wide);
+	text-transform: uppercase;
+	color: var(--ink-subtle);
+	padding: var(--space-2) var(--space-4) var(--space-2) 0;
+	white-space: nowrap;
+}
+
+.prose td {
+	padding: var(--space-3) var(--space-4) var(--space-3) 0;
+	border-bottom: 1px solid var(--line);
+	vertical-align: top;
+	line-height: var(--leading-snug);
+}
+
+.prose tbody tr:last-child td {
+	border-bottom: none;
+}
+
+.prose td > code {
+	white-space: nowrap;
+}
+
+/* ------------------------------------------------------------ blockquote -- */
+
+.prose blockquote {
+	padding-left: var(--space-5);
+	border-left: 2px solid var(--line-strong);
+	color: var(--ink-muted);
+	font-style: italic;
+}
+
+.prose blockquote > * + * {
+	margin-top: var(--space-4);
+}
+
+/* -------------------------------------------------------------- callouts -- */
+
+.callout {
+	padding: var(--space-4) var(--space-5);
+	border: 1px solid var(--line);
+	border-left-width: 3px;
+	border-radius: var(--radius);
+	background: var(--surface-subtle);
+	font-size: var(--text-base);
+	line-height: var(--leading-snug);
+}
+
+.callout > * + * {
+	margin-top: var(--space-3);
+}
+
+.callout-title {
+	font-weight: var(--weight-semibold);
+	font-size: var(--text-sm);
+	letter-spacing: var(--tracking-wide);
+	text-transform: uppercase;
+}
+
+.callout-note {
+	border-color: var(--info-line);
+	border-left-color: var(--info);
+	background: var(--info-soft);
+}
+
+.callout-note .callout-title {
+	color: var(--info);
+}
+
+.callout-tip {
+	border-color: var(--accent-line);
+	border-left-color: var(--accent);
+	background: var(--accent-soft);
+}
+
+.callout-tip .callout-title {
+	color: var(--accent);
+}
+
+.callout-important {
+	border-color: var(--accent-line);
+	border-left-color: var(--accent);
+	background: var(--accent-soft);
+}
+
+.callout-important .callout-title {
+	color: var(--accent);
+}
+
+.callout-warning,
+.callout-caution {
+	border-color: var(--warn-line);
+	border-left-color: var(--warn);
+	background: var(--warn-soft);
+}
+
+.callout-warning .callout-title,
+.callout-caution .callout-title {
+	color: var(--warn);
+}
+
+.callout-caution {
+	border-color: var(--danger-line);
+	border-left-color: var(--danger);
+	background: var(--danger-soft);
+}
+
+.callout-caution .callout-title {
+	color: var(--danger);
+}
+
+.callout .code-frame {
+	background: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+
+/* ---------------------------------------------------------------- images -- */
+
+.prose img {
+	border-radius: var(--radius-lg);
+	border: 1px solid var(--line);
+}
+
+.prose figure figcaption {
+	margin-top: var(--space-2);
+	font-size: var(--text-sm);
+	color: var(--ink-subtle);
+	text-align: center;
+}
+
+/* -------------------------------------------------------------- keyboard -- */
+
+.prose kbd {
+	font-family: var(--font-sans);
+	font-size: 0.82em;
+	padding: 2px 6px;
+	border: 1px solid var(--line-strong);
+	border-bottom-width: 2px;
+	border-radius: var(--radius-sm);
+	background: var(--surface-subtle);
+	color: var(--ink-muted);
+}

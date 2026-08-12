@@ -1,0 +1,7 @@
+error: unterminated `{` in a route path
+
+       help: close the parameter: "/users/{id}"
+  --> tests/ui/routing/bad_path_braces.rs
+   |
+   |         GET "/users/{id" => show,
+   |             ^^^^^^^^^^^^

@@ -1,0 +1,171 @@
+[package]
+name = "moso"
+description = "A batteries-included, model-driven web framework for Rust. One type definition drives parsing, validation, serialisation and OpenAPI."
+categories = ["web-programming::http-server", "asynchronous"]
+keywords = ["web", "framework", "api", "openapi", "axum"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["http", "openapi", "tracing"]
+# `moso-core` is an unconditional dependency of the facade (it is what the facade
+# re-exports), so `http` is an accepted no-op kept for compatibility with the
+# documented feature topology in 00-foundations/02-architecture.md.
+http = []
+openapi = ["moso-core/openapi", "dep:moso-openapi"]
+# Which documentation-UI route is mounted next to `/docs`. `scalar` is the
+# default UI; `redoc` additionally serves `/redoc` and `swagger-ui` additionally
+# serves `/swagger`. All three render the one embedded, network-free renderer —
+# the feature only selects the route — and all three obey `http.expose_docs`, so
+# none of them is served in the production profile.
+scalar = ["moso-core/scalar"]
+redoc = ["moso-core/redoc"]
+swagger-ui = ["moso-core/swagger-ui"]
+tracing = ["moso-core/tracing"]
+# The `moso::observability` subscriber initialiser, OFF by default. It pulls
+# `tracing-subscriber` (~7 crates), and the default `moso` tree is already over
+# the rule-6 budget, so it is opt-in — an application that wants Moso to own its
+# subscriber turns it on; one that installs its own in `main` does not. See
+# moso-core's `subscriber` feature and docs/04-devex/44-observability.md.
+subscriber = ["moso-core/subscriber"]
+# OpenTelemetry OTLP export, OFF by default. Turns `TracingConfig::otlp_endpoint`
+# from a recorded setting into a live batch exporter and makes an incoming W3C
+# `traceparent` reparent the request span. Implies `subscriber`, which it
+# extends. See moso-core's `otel` feature.
+otel = ["subscriber", "moso-core/otel"]
+compression = ["moso-core/compression"]
+cors = ["moso-core/cors"]
+multipart = ["moso-core/multipart"]
+ws = ["moso-core/ws"]
+# The data layer. OFF by default, and it must stay off: the topology rule in
+# 00-foundations/02-architecture.md is that "the facade has no default feature
+# that pulls a database driver", and `xtask check-deps` rule 6 counts the
+# default resolution.
+#
+# It has to be one feature and not three, because the three crates are only
+# useful together: `#[derive(Entity)]` (moso-orm-macros) expands to impls of
+# `moso-orm`'s traits written in terms of `moso-sql`'s value types, all named
+# through `moso::__private` (decision D6). Turning on any one alone would give
+# a user a half-wired derive.
+orm = ["dep:moso-orm", "dep:moso-sql", "dep:moso-orm-macros"]
+# The authentication battery. OFF by default for the same reason `orm` is —
+# `moso-auth` depends on `moso-orm` (a user lives in a table) and on `moso-kv`
+# (a session lives in a KV store), so it pulls a database driver. It implies
+# `orm` rather than hiding it because the driver is compiled either way: leaving
+# `moso::db` invisible behind a second flag would cost a user the ORM without
+# saving them a single crate.
+#
+# Unlike `authz` and `jobs` this adds nothing to `moso::__private` — `moso-auth`
+# ships no proc macro, so nothing in it is reached by a macro expansion and the
+# re-export is the whole surface.
+auth = ["dep:moso-auth", "orm"]
+# Passkeys / WebAuthn on top of `auth`, OFF by default (ADR-0015). It is a
+# separate flag rather than part of `auth` because `moso-auth`'s passkey subtree
+# links OpenSSL and is MPL-2.0 throughout: a default `--features auth` build must
+# pull none of it and need no C toolchain, and only a project that opts in pays
+# that cost. `auth` must therefore never imply `passkeys`. Turning it on adds
+# `moso::auth::{WebAuthn, PasskeyStore, PasskeyCredential, …}` and the passkey
+# ceremony routes.
+passkeys = ["auth", "moso-auth/passkeys"]
+# The authorization battery. OFF by default for the same reason `orm` is — it
+# depends on `moso-orm`, which pulls a database driver. Turning it on is what
+# makes `permissions!`, `roles!`, `#[requires]` and `#[public]` compile: every
+# path they emit resolves through `moso::__private` (decision D6), and that half
+# of `__private` only exists behind this feature.
+authz = ["dep:moso-authz", "orm"]
+# The background-job battery. OFF by default for the same reason `orm` is —
+# `moso-jobs` depends on `moso-orm` so that `tx.enqueue(..)` can write the job
+# row in the caller's transaction, which pulls a database driver. Turning it on
+# is what makes `#[job]` compile: every path it emits resolves through
+# `moso::__private` (decision D6), and that half of `__private` only exists
+# behind this feature.
+jobs = ["dep:moso-jobs", "orm"]
+# The key-value / cache battery: typed `namespace!`s, single-flight caching,
+# distributed locks and the GCRA rate limiter. OFF by default. Unlike `auth`,
+# `authz` and `jobs` it does NOT imply `orm` and pulls no database driver:
+# `moso-kv` depends only on `moso-core`, `moso-schema` and `moso-openapi`, and
+# its default `memory` backend is an in-process map. A stateless service can
+# therefore have a cache without compiling a line of SQL; the Redis and
+# PostgreSQL backends are `moso-kv`'s own opt-in features, reached by depending
+# on `moso-kv` directly.
+kv = ["dep:moso-kv"]
+# The mail battery: a framework-owned `Mailer`, compile-checked templates, a
+# `/_mail` dev preview inbox, a suppression list and verified provider webhooks.
+# OFF by default. It implies no `orm` and pulls no database driver — a service
+# must be able to send mail without an ORM (dependency rule 5) — and its default
+# `console` + `memory` backends need no service. SMTP and the REST providers are
+# `moso-mail`'s own opt-in features.
+mail = ["dep:moso-mail"]
+# The object-storage battery: streamed uploads with magic-byte sniffing,
+# presigned direct upload, multipart and typed entity attachments. OFF by
+# default. It implies no `orm` and pulls no database driver — a service must be
+# able to store bytes without an ORM — and its default `local` + `memory`
+# backends need no service. S3/GCS/Azure are `moso-storage`'s own opt-in
+# features. It does turn on `moso-core`'s `multipart`, because `Upload<K>` is an
+# `ExtractBody` over a `multipart/form-data` body.
+storage = ["dep:moso-storage"]
+# Compiles in the test-only `dependency_overrides` table. Belongs in a
+# `[dev-dependencies]` entry — `moso = { version = "…", features = ["test"] }` —
+# never in `[dependencies]`, so that the production build of the same crate
+# cannot resolve an overridden dependency.
+test = ["moso-core/test"]
+# Every battery and optional layer at once, for measurement and convenience —
+# NOT a production preset. This is the feature `xtask check-deps` rule 6 and
+# `docs/00-foundations/03-crate-layout.md`'s crate-count budget measure against:
+# it is the widest the dependency graph ever gets. It pulls a database driver
+# (through `orm`, which `auth`/`authz`/`jobs` imply) and the passkey subtree's
+# OpenSSL, so a real application turns on only the batteries it uses. The
+# dev-only `test` feature is deliberately excluded — a production-reachable
+# `dependency_overrides` table is an authentication-bypass primitive, so it
+# never belongs in a preset that a `[dependencies]` entry could reach.
+full = [
+    "orm",
+    "auth",
+    "authz",
+    "jobs",
+    "kv",
+    "mail",
+    "storage",
+    "openapi",
+    "compression",
+    "cors",
+    "multipart",
+    "ws",
+    "passkeys",
+    "subscriber",
+    "otel",
+]
+
+[dependencies]
+moso-auth = { workspace = true, optional = true }
+moso-authz = { workspace = true, optional = true }
+moso-core.workspace = true
+moso-jobs = { workspace = true, optional = true }
+moso-kv = { workspace = true, optional = true }
+moso-macros.workspace = true
+moso-mail = { workspace = true, optional = true }
+moso-openapi = { workspace = true, optional = true }
+moso-orm = { workspace = true, optional = true }
+moso-orm-macros = { workspace = true, optional = true }
+moso-sql = { workspace = true, optional = true }
+moso-storage = { workspace = true, optional = true }
+
+[dev-dependencies]
+axum.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tower.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

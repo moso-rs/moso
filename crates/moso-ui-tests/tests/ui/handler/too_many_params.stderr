@@ -1,0 +1,10 @@
+error: handlers support at most 16 parameters; group them into a `Depends` struct
+
+       note: this handler declares 17
+       help: group related parameters into a struct deriving `Dependency` and take it as one parameter:
+           #[derive(moso::Dependency)]
+           struct ListDeps { /* the grouped parameters */ }
+  --> tests/ui/handler/too_many_params.rs
+   |
+   |     q: RequestId,
+   |     ^^^^^^^^^^^^

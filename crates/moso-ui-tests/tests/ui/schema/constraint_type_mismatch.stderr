@@ -1,0 +1,16 @@
+error: a text constraint needs a string; `page` is an integer
+
+       help: apply it to each element instead: `#[schema(each(pattern = "…"))]`
+  --> tests/ui/schema/constraint_type_mismatch.rs
+   |
+   |     #[schema(pattern = r"^\d+$")]
+   |                        ^^^^^^^^
+
+error: a numeric constraint needs a number; `query` is a string
+
+       help: use `len = …` for a string or a list
+       help: a numeric bound needs a numeric primitive — a type alias is opaque here
+  --> tests/ui/schema/constraint_type_mismatch.rs
+   |
+   |     #[schema(range = 1..=10)]
+   |                      ^

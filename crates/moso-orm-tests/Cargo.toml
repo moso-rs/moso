@@ -1,0 +1,33 @@
+[package]
+name = "moso-orm-tests"
+description = "The end-to-end corpus for Moso's ORM derives: real entities, compiled through the facade, run against a real database."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+# `moso` with the `orm` feature on, which is the *only* configuration in which
+# `#[derive(Entity)]` can compile: the derive resolves every path it emits
+# against `::moso::__private::*` (decision D6), and that half of `__private`
+# only exists behind `orm`. Turning the feature on here rather than in `moso`
+# itself is what keeps `xtask check-deps` rule 6 measuring a facade whose
+# default features pull no database driver.
+[dev-dependencies]
+moso = { workspace = true, features = ["orm"] }
+# `moso-migrate` is not re-exported by the facade — it is a build-time tool, not
+# part of an application's runtime surface — so the one test that closes the
+# derive → migration → database loop names it directly.
+moso-migrate.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+chrono = { workspace = true }
+uuid = { workspace = true }
+serde = { workspace = true, features = ["derive"] }

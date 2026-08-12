@@ -1,0 +1,7 @@
+error: unknown `schema` attribute `lenght`
+
+       help: did you mean `len`?
+  --> tests/ui/schema/unknown_attribute.rs
+   |
+   |     #[schema(lenght = 3..=32)]
+   |              ^^^^^^

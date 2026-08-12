@@ -1,0 +1,80 @@
+name: Good first issue (maintainers)
+description: File a task that a newcomer can finish in one sitting
+title: "good first issue: "
+labels: [good-first-issue, help-wanted]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **This form is for maintainers**, and it exists because
+        `docs/05-delivery/52-governance.md` § Community commits to keeping at least ten of these open
+        at all times, *"each with a description of the fix and the file to
+        change"*. An issue labelled `good-first-issue` that does not name the file
+        is not a good first issue; it is a research project with a friendly label,
+        and it is the most common way projects lose the contributor they were
+        trying to attract.
+
+        Every field below is required for that reason. If you cannot fill one in,
+        the task is not ready to be handed over yet — file it as a normal issue.
+
+  - type: textarea
+    id: task
+    attributes:
+      label: The task
+      description: One paragraph. What should be true when this is done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: files
+    attributes:
+      label: The file(s) to change
+      description: Paths, and the function or item if you know it.
+      placeholder: |
+        crates/moso-core/src/response/page.rs — `Page::describe`
+        crates/moso-core/tests/responses.rs — add the test next to `page_describes_items`
+    validations:
+      required: true
+
+  - type: textarea
+    id: approach
+    attributes:
+      label: How to do it
+      description: >
+        The approach, in a few sentences, including anything non-obvious about the
+        surrounding code. Assume the reader knows Rust and has never seen this
+        repository.
+    validations:
+      required: true
+
+  - type: textarea
+    id: done
+    attributes:
+      label: How to know it works
+      description: >
+        The command to run and what it should print. A newcomer's biggest fear is
+        not knowing whether they are finished.
+      placeholder: |
+        cargo nextest run -p moso-core response::page
+        cargo lint
+    validations:
+      required: true
+
+  - type: input
+    id: mentor
+    attributes:
+      label: Who to ask
+      description: >
+        A person, not "the team". An unmentored good-first-issue is an issue with
+        extra steps.
+      placeholder: "@lowsbarrel"
+    validations:
+      required: true
+
+  - type: input
+    id: size
+    attributes:
+      label: Expected size
+      placeholder: ~20 lines and one test, under an hour
+    validations:
+      required: true

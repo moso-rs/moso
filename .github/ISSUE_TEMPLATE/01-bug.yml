@@ -1,0 +1,91 @@
+name: Bug report
+description: Something behaves differently from what the documentation says
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Moso is pre-0.1 and one thing is worth saying up front: **a mismatch
+        between the documentation and the code is a bug either way**. If
+        `docs/` promises something that does not happen, that is a report worth
+        filing even if the code is the part that is right.
+
+        Triage label within 7 days. That is the only response SLA there is
+        (`docs/05-delivery/52-governance.md` § Maintainer wellbeing) — no promise on resolution,
+        because a promise that gets broken is worse than none.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you observed, including the exact error, panic or output.
+      placeholder: |
+        `POST /posts` with a body missing `title` returns 500 instead of 422, and
+        the log line says "…".
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected instead
+      description: >
+        If a design document or a rustdoc page says what should happen, quote it
+        and link it. That turns a judgement call into a check.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >
+        The smallest program that shows it. A `moso new`-generated project with
+        one changed handler is ideal; a link to a repository is fine; a
+        description of a large private application is the hardest case to help
+        with, so please reduce it if you can.
+      render: rust
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Moso version
+      description: The version from `Cargo.toml`, or the git revision.
+      placeholder: "0.1.0 (or 65bb9c8)"
+    validations:
+      required: true
+
+  - type: input
+    id: toolchain
+    attributes:
+      label: "`rustc --version`"
+      placeholder: rustc 1.97.1 (8bab26f4f 2026-07-14)
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      placeholder: macOS 15.5 arm64 / Ubuntu 24.04 x86_64 / Windows 11
+    validations:
+      required: true
+
+  - type: textarea
+    id: database
+    attributes:
+      label: Database, if the report involves one
+      description: >
+        Postgres or SQLite, and the version. Postgres is first-class and SQLite is
+        fully supported (ADR-0010); a bug that appears on only one of them is
+        useful information, so please say which you tried.
+      placeholder: Postgres 17.2 / SQLite 3.45.1
+
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`moso doctor` output"
+      description: Optional, and often the fastest way to spot an environment problem.
+      render: text

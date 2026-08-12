@@ -1,0 +1,170 @@
+{
+  "generated_at": "2026-07-30",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "host": "aarch64-apple-darwin",
+  "package": "example-crud",
+  "runs": 5,
+  "scenarios": [
+    {
+      "id": "cold-build",
+      "description": "cargo build after cleaning every Moso crate (dependencies warm)",
+      "command": "CARGO_TERM_COLOR=never CARGO_TERM_PROGRESS_WHEN=never cargo build --package example-crud --locked --offline",
+      "variant": null,
+      "samples_ms": [
+        4691.49,
+        4665.56,
+        4684.2,
+        4749.52,
+        4660.65
+      ],
+      "stats": {
+        "runs": 5,
+        "min_ms": 4660.65,
+        "max_ms": 4749.52,
+        "mean_ms": 4690.284000000001,
+        "p50_ms": 4684.2,
+        "p95_ms": 4749.52,
+        "stdev_ms": 31.739008554143762,
+        "deviation_pct": 1.3944750437641567
+      }
+    },
+    {
+      "id": "handler-body-edit",
+      "description": "cargo build after changing one statement in one handler",
+      "command": "CARGO_TERM_COLOR=never CARGO_TERM_PROGRESS_WHEN=never cargo build --package example-crud --locked --offline",
+      "variant": null,
+      "samples_ms": [
+        697.5,
+        629.81,
+        643.2,
+        644.9,
+        641.43
+      ],
+      "stats": {
+        "runs": 5,
+        "min_ms": 629.81,
+        "max_ms": 697.5,
+        "mean_ms": 651.3679999999999,
+        "p50_ms": 643.2,
+        "p95_ms": 697.5,
+        "stdev_ms": 23.665265179160798,
+        "deviation_pct": 8.44216417910447
+      }
+    },
+    {
+      "id": "check-handler-edit",
+      "description": "cargo check after changing one statement in one handler",
+      "command": "CARGO_TERM_COLOR=never CARGO_TERM_PROGRESS_WHEN=never cargo check --package example-crud --locked --offline",
+      "variant": null,
+      "samples_ms": [
+        223.51,
+        225.4,
+        228.27,
+        248.31,
+        241.44
+      ],
+      "stats": {
+        "runs": 5,
+        "min_ms": 223.51,
+        "max_ms": 248.31,
+        "mean_ms": 233.38599999999997,
+        "p50_ms": 228.27,
+        "p95_ms": 248.31,
+        "stdev_ms": 9.74759170256941,
+        "deviation_pct": 8.779077408332233
+      }
+    },
+    {
+      "id": "new-endpoint",
+      "description": "cargo build after adding and registering one #[endpoint]",
+      "command": "CARGO_TERM_COLOR=never CARGO_TERM_PROGRESS_WHEN=never cargo build --package example-crud --locked --offline",
+      "variant": null,
+      "samples_ms": [
+        909.62,
+        936.07,
+        954.49,
+        947.15,
+        917.12
+      ],
+      "stats": {
+        "runs": 5,
+        "min_ms": 909.62,
+        "max_ms": 954.49,
+        "mean_ms": 932.89,
+        "p50_ms": 936.07,
+        "p95_ms": 954.49,
+        "stdev_ms": 17.1476284074504,
+        "deviation_pct": 2.825643381371056
+      }
+    },
+    {
+      "id": "new-entity",
+      "description": "cargo build after adding one model type",
+      "command": "CARGO_TERM_COLOR=never CARGO_TERM_PROGRESS_WHEN=never cargo build --package example-crud --locked --offline",
+      "variant": "variant: #[derive(Schema)] — moso-orm is not in the workspace, so there is no #[derive(Entity)] to measure yet",
+      "samples_ms": [
+        866.55,
+        876.41,
+        876.88,
+        876.71,
+        901.38
+      ],
+      "stats": {
+        "runs": 5,
+        "min_ms": 866.55,
+        "max_ms": 901.38,
+        "mean_ms": 879.586,
+        "p50_ms": 876.71,
+        "p95_ms": 901.38,
+        "stdev_ms": 11.580988904234395,
+        "deviation_pct": 2.81392934949983
+      }
+    },
+    {
+      "id": "cargo-toml-touch",
+      "description": "cargo build after touching the application's Cargo.toml",
+      "command": "CARGO_TERM_COLOR=never CARGO_TERM_PROGRESS_WHEN=never cargo build --package example-crud --locked --offline",
+      "variant": null,
+      "samples_ms": [
+        685.68,
+        680.3,
+        686.56,
+        710.61,
+        673.29
+      ],
+      "stats": {
+        "runs": 5,
+        "min_ms": 673.29,
+        "max_ms": 710.61,
+        "mean_ms": 687.288,
+        "p50_ms": 685.68,
+        "p95_ms": 710.61,
+        "stdev_ms": 12.58417641325806,
+        "deviation_pct": 3.6358067903395264
+      }
+    },
+    {
+      "id": "test-build",
+      "description": "cargo test --no-run after changing one handler",
+      "command": "CARGO_TERM_COLOR=never CARGO_TERM_PROGRESS_WHEN=never cargo test --no-run --package example-crud --locked --offline",
+      "variant": null,
+      "samples_ms": [
+        910.67,
+        924.13,
+        937.83,
+        943.11,
+        944.76
+      ],
+      "stats": {
+        "runs": 5,
+        "min_ms": 910.67,
+        "max_ms": 944.76,
+        "mean_ms": 932.1,
+        "p50_ms": 937.83,
+        "p95_ms": 944.76,
+        "stdev_ms": 12.939044787000332,
+        "deviation_pct": 2.896047258031848
+      }
+    }
+  ]
+}

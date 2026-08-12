@@ -1,0 +1,91 @@
+[package]
+name = "moso-storage"
+description = "Moso's object-storage battery: a framework-owned Storage trait, streamed uploads with magic-byte sniffing, presigned direct upload, multipart, and typed entity attachments with variants."
+categories = ["filesystem", "web-programming"]
+keywords = ["moso", "storage", "s3", "upload", "objects"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# The backend table of `docs/03-batteries/34-mail-storage-realtime.md`.
+# `local` and `memory` need no service and cover `moso dev` and every test.
+default = ["local", "memory"]
+local = []
+memory = []
+s3 = ["cloud"]
+gcs = ["cloud"]
+azure = ["cloud"]
+# Private: the shared HTTP machinery behind the three cloud backends.
+cloud = ["dep:reqwest", "dep:rustls"]
+
+[dependencies]
+# `Error`, `Router` (the served route for the local backend), `File` (the
+# `Range`/`ETag`-aware response `serve` returns), and `Multipart` — `Upload<K>`
+# is an `ExtractBody` over a `multipart/form-data` body, so the feature is not
+# optional here even though it is off by default in `moso-core`.
+moso-core = { workspace = true, features = ["multipart"] }
+# `Url` for a signed link, `Id<E>` in a key, `Schema` for the DTOs.
+moso-schema.workspace = true
+# The upload and serve routes describe themselves.
+moso-openapi.workspace = true
+# No battery edge: a service must be able to store bytes without an ORM
+# (`xtask/allow/dep-edges.toml`: storage -> []). `Attachment<K>` is a plain
+# `Serialize` descriptor, so `#[entity(attachment(..))]` stores it through
+# `moso_orm::Json` without this crate knowing the ORM exists.
+
+# `Router::mount_axum` is how a route captures state it was handed at boot —
+# the preview inbox and the development serve route both need one. Already
+# compiled for every Moso application through `moso-core`.
+axum.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros", "fs", "io-util"] }
+tracing.workspace = true
+
+# Every cryptographic primitive in this crate, and it implements none of them:
+# SHA-256 (`Checksum::sha256`, the ETag of a stored object), HMAC-SHA256 (a
+# development `LocalStorage` signed URL, AWS SigV4, the Azure shared key and
+# service SAS), RSA PKCS#1 v1.5 over SHA-256 seeded from the OS CSPRNG (a GCS V4
+# signed URL and the RFC 7523 assertion that mints its access tokens), and the
+# constant-time compare that verifies a signature without leaking it through
+# timing. Already in the graph through sqlx's rustls provider, so it costs
+# nothing.
+ring.workspace = true
+# Signature encoding — standard for Azure and the PEM body of a service-account
+# key, URL-safe for a JWT — and the `filename*` half of RFC 6266.
+base64.workspace = true
+percent-encoding.workspace = true
+
+# ── backends ────────────────────────────────────────────────────────────────
+reqwest = { workspace = true, optional = true, features = ["rustls-no-provider"] }
+rustls = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "fs"] }
+serde_json.workspace = true
+futures-util.workspace = true
+# The acceptance tests drive the real extractor, which needs `AppState::for_tests`
+# and a real `multipart/form-data` request.
+moso-core = { workspace = true, features = ["multipart", "test"] }
+axum.workspace = true
+http.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

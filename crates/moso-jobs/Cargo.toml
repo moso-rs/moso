@@ -1,0 +1,80 @@
+[package]
+name = "moso-jobs"
+description = "Moso's background-job battery: a framework-owned Job trait, transactional enqueue, retries with a dead-letter queue, cron and interval scheduling with leader election, and workers."
+categories = ["asynchronous", "web-programming"]
+keywords = ["moso", "jobs", "queue", "worker", "cron"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# The three backends of `docs/03-batteries/32-jobs.md`. `jobs-pg` is on by
+# default because transactional enqueue — the headline feature — only exists
+# there; `jobs-memory` is on by default because a test suite that needs a
+# broker is a test suite people stop running.
+default = ["jobs-pg", "jobs-memory"]
+# `sqlx` is the *listener*, not the query path: everything else goes through
+# `moso_orm`, and `LISTEN`/`NOTIFY` needs a connection the pool does not hand
+# back. `Db::postgres_pool()` is the sanctioned escape hatch (N8).
+jobs-pg = ["dep:sqlx"]
+# The Redis queue is written against `moso_kv::KvStore` rather than against a
+# Redis client, so this crate never names `fred` and the same code is exercised
+# by the in-memory store in tests.
+jobs-redis = ["moso-kv/redis"]
+jobs-memory = []
+
+[dependencies]
+# `Error`, `Resolver`, `Dependency`, `HealthCheck`, `shutdown::Signal` — a
+# worker drains on the same signal the HTTP server does.
+moso-core.workspace = true
+# `Id<E>` in a payload, and the dashboard DTOs are `Schema` types.
+moso-schema.workspace = true
+# The `/_jobs` dashboard routes describe themselves.
+moso-openapi.workspace = true
+# The default queue is a table, and `tx.enqueue(..)` extends `Executor`
+# (`xtask/allow/dep-edges.toml`: jobs -> orm).
+moso-orm.workspace = true
+# Scheduler leader election is a compare-and-swap with a TTL (jobs -> kv).
+moso-kv.workspace = true
+
+# `KvStore` speaks `Bytes`, and both the idempotency ledger and the Redis queue
+# are written against it.
+bytes.workspace = true
+chrono.workspace = true
+# Named timezones for `Cron::timezone`. `Europe/Rome` has to survive the clocks
+# changing; a fixed offset does not, and a nightly job that runs at 02:00 in
+# summer is a support ticket. `serde` is off — a schedule is declared in Rust,
+# never deserialised — and so is `case-insensitive`, which costs the `uncased`
+# crate to accept `europe/rome`.
+chrono-tz = { version = "0.10.4", default-features = false, features = ["std"] }
+futures-util.workspace = true
+humantime.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tracing.workspace = true
+uuid.workspace = true
+
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+moso-kv = { workspace = true, features = ["memory"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+serde_json.workspace = true
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

@@ -1,0 +1,76 @@
+# Review routing.
+#
+# `docs/05-delivery/52-governance.md` defines **area owners**: one per major crate, responsible for
+# reviews in their area and for roadmap input, and not necessarily a member of
+# the core team. This file is where that table becomes real — an area with no
+# owner is an area where a pull request waits for whoever notices.
+#
+# ⚠️ **Today every line names one person, which is exactly the failure mode
+# `docs/05-delivery/52-governance.md` § The bus factor rule exists to prevent.** It is recorded here
+# rather than hidden: Moso does not make a public 0.1 announcement with fewer
+# than three maintainers holding commit rights, and this file is one of the
+# artefacts that must change before that announcement. When a second and third
+# maintainer join, split these lines by area rather than adding everybody to
+# every line — a review request that goes to all maintainers goes to nobody.
+#
+# Syntax note: the *last* matching pattern wins, so the specific entries below
+# override the catch-all at the top.
+
+*                               @lowsbarrel
+
+# ── Design documents ────────────────────────────────────────────────────────
+# The documents are the source of truth (51-work-packages.md). A change here is
+# a design change and is reviewed as one, even when it looks like prose.
+/docs/                          @lowsbarrel
+/docs/adr/                      @lowsbarrel
+
+# ── The HTTP half ───────────────────────────────────────────────────────────
+/crates/moso/                   @lowsbarrel
+/crates/moso-core/              @lowsbarrel
+/crates/moso-schema/            @lowsbarrel
+/crates/moso-openapi/           @lowsbarrel
+/crates/moso-macros/            @lowsbarrel
+
+# ── The data layer ──────────────────────────────────────────────────────────
+# ADR-0005 (the sealed SQL facade) is enforced by `xtask check-sealed`, but the
+# reason a foreign type would leak is almost always a signature that looked
+# harmless in review, so these need an owner who knows the rule.
+/crates/moso-sql/               @lowsbarrel
+/crates/moso-orm/               @lowsbarrel
+/crates/moso-orm-macros/        @lowsbarrel
+/crates/moso-migrate/           @lowsbarrel
+/crates/moso-kv/                @lowsbarrel
+
+# ── The batteries ───────────────────────────────────────────────────────────
+# Security defaults live here. `docs/05-delivery/52-governance.md` § The RFC process requires an RFC
+# for any change to a security default, so a pull request touching these that has
+# no linked RFC should be asked for one before it is read line by line.
+/crates/moso-auth/              @lowsbarrel
+/crates/moso-authz/             @lowsbarrel
+/crates/moso-jobs/              @lowsbarrel
+/crates/moso-mail/              @lowsbarrel
+/crates/moso-storage/           @lowsbarrel
+/crates/moso-admin/             @lowsbarrel
+
+# ── Tooling, tests and the diagnostics corpus ───────────────────────────────
+/crates/moso-cli/               @lowsbarrel
+/crates/moso-test/              @lowsbarrel
+/crates/moso-ui-tests/          @lowsbarrel
+/xtask/                         @lowsbarrel
+/scripts/                       @lowsbarrel
+/compose.test.yaml              @lowsbarrel
+
+# ── The gates themselves ────────────────────────────────────────────────────
+# Anything that can *weaken a gate* is owned tightly: a workflow edit, the
+# licence and advisory policy, the toolchain, or the lint configuration in the
+# workspace manifest. This is the highest-leverage diff in the repository and the
+# easiest one to wave through.
+/.github/                       @lowsbarrel
+/deny.toml                      @lowsbarrel
+/rust-toolchain.toml            @lowsbarrel
+/.cargo/                        @lowsbarrel
+/Cargo.toml                     @lowsbarrel
+/Cargo.lock                     @lowsbarrel
+
+# ── Legal ───────────────────────────────────────────────────────────────────
+/LICENSE                        @lowsbarrel

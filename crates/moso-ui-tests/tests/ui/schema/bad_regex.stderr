@@ -1,0 +1,8 @@
+error: this regular expression does not compile: unclosed character class
+
+       help: fix the expression, or use `format = "…"` if a named format says the same thing:
+           #[schema(format = "email")]
+  --> tests/ui/schema/bad_regex.rs
+   |
+   |     #[schema(pattern = r"^[a-z0-9_+$")]
+   |                        ^^^^^^^^^^^^^^

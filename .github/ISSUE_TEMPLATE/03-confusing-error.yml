@@ -1,0 +1,64 @@
+name: A confusing error message
+description: A compiler error, boot error or runtime error you could not act on
+title: "confusing error: "
+labels: [confusing-error, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is not a second-class report. `docs/04-devex/41-diagnostics.md` treats
+        error quality as a product surface with an owner, a budget and a
+        regression suite, and it tracks exactly two numbers that depend on you
+        filing this: *time from a reported confusing error to a UI test* (target:
+        under 7 days) and *`confusing-error` issues open more than 30 days*
+        (target: zero).
+
+        What happens next: the message becomes a case in `crates/moso-ui-tests`
+        with its output snapshotted, and *then* it gets improved. The test comes
+        first so the improvement cannot silently regress later.
+
+  - type: textarea
+    id: message
+    attributes:
+      label: The message, in full
+      description: >
+        Paste all of it, including the parts that look like noise — the noise is
+        usually the bug. Do not trim the `note:` lines.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: code
+    attributes:
+      label: The code that produced it
+      render: rust
+    validations:
+      required: true
+
+  - type: textarea
+    id: intent
+    attributes:
+      label: What you were trying to do
+      description: >
+        In your words. The gap between this and what the message says *is* the
+        defect.
+    validations:
+      required: true
+
+  - type: textarea
+    id: understanding
+    attributes:
+      label: What you thought the message was telling you
+      description: >
+        Optional, and the most valuable field on this form. A message that leads
+        somebody to the wrong fix is worse than one that says nothing.
+
+  - type: input
+    id: toolchain
+    attributes:
+      label: "`rustc --version`"
+      description: Diagnostics change between compiler releases, so this matters more here than elsewhere.
+      placeholder: rustc 1.97.1 (8bab26f4f 2026-07-14)
+    validations:
+      required: true

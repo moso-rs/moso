@@ -1,0 +1,378 @@
+# The release pipeline.
+#
+# docs/05-delivery/53-quality-gates.md § Release process is the specification, and
+# its last line is the one that shapes this file: *"Releases are never cut by
+# hand, and never from a laptop."* Everything below therefore runs from a tag, in
+# a job with an auditable log, and refuses to proceed when a precondition is
+# unmet rather than asking a human whether it should.
+#
+# Trigger:
+#
+#   git tag -s v0.1.0 -m "moso 0.1.0" && git push origin v0.1.0
+#
+# `workflow_dispatch` runs the whole pipeline against any ref *without ever
+# publishing*, so the pipeline itself can be rehearsed without burning a version
+# number. There is deliberately no "publish for real" input: the only way to
+# publish is to push a signed tag, which is a reviewable, revertible git object
+# rather than a button somebody can mis-click.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  # A tag push is the real thing; everything else is a rehearsal.
+  DRY_RUN: ${{ github.event_name != 'push' }}
+
+jobs:
+  # ── Step 1 of the release process: all gates green on this exact commit ───
+  #
+  # Not "green on main recently" — green on the commit being released. A tag
+  # pushed from a stale local branch is the classic way an unreviewed commit
+  # reaches crates.io.
+  gates:
+    name: 1. gates were green on this commit
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@v5
+      - name: The CI check run for this commit concluded successfully
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          conclusion=$(gh api "repos/${GITHUB_REPOSITORY}/commits/${SHA}/check-runs" \
+            --jq '[.check_runs[] | select(.name == "CI")] | last | .conclusion // "missing"')
+          echo "CI check run for ${SHA}: ${conclusion}"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::the aggregate CI check for this commit is '${conclusion}', not 'success'. Releases require every merge gate green on the released commit (53-quality-gates.md § Release process, step 1)."
+            exit 1
+          fi
+
+  # ── Step 2: the version is consistent everywhere it appears ───────────────
+  version:
+    name: 2. version is consistent
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: check
+        name: Tag, manifests, internal pins and changelog agree
+        shell: python3 {0}
+        env:
+          REF_NAME: ${{ github.ref_name }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          import os
+          import re
+          import sys
+          import tomllib
+
+          with open("Cargo.toml", "rb") as handle:
+              root = tomllib.load(handle)
+          workspace = root["workspace"]
+          version = workspace["package"]["version"]
+          problems = []
+
+          # 1. The tag, when there is one, must name the version in the manifest.
+          if os.environ["EVENT"] == "push":
+              tag = os.environ["REF_NAME"]
+              if tag != f"v{version}":
+                  problems.append(
+                      f"tag {tag} does not match [workspace.package] version {version}; "
+                      f"expected the tag v{version}"
+                  )
+
+          # 2. Internal dependencies are exact pins, so a published moso 0.2.0
+          #    can never resolve against a moso-core 0.1.0 that predates it.
+          for name, spec in workspace.get("dependencies", {}).items():
+              if not isinstance(spec, dict) or "path" not in spec:
+                  continue
+              requirement = spec.get("version", "")
+              if requirement != f"={version}":
+                  problems.append(
+                      f"[workspace.dependencies] {name} is '{requirement}', expected '={version}' "
+                      "(03-crate-layout.md: Moso crates version in lockstep with exact internal pins)"
+                  )
+
+          for problem in problems:
+              print(f"::error::{problem}")
+          if problems:
+              sys.exit(1)
+
+          print(f"releasing {version}")
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as handle:
+              handle.write(f"version={version}\n")
+
+  # ── Step 4: G18, semver compatibility with the previous release ───────────
+  semver:
+    name: 4. G18 semver-checks
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: semver
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-semver-checks
+      - name: Is there a published baseline to compare against?
+        id: baseline
+        run: |
+          set -euo pipefail
+          # The first release has nothing to be compatible with. Saying so out
+          # loud is better than an `|| true` that also hides the second release's
+          # failure.
+          published=$(curl -sS --retry 3 -H 'User-Agent: moso-release-ci' \
+            https://crates.io/api/v1/crates/moso | python3 -c '
+          import json, sys
+          try:
+              payload = json.load(sys.stdin)
+          except Exception:
+              print("")
+              sys.exit(0)
+          versions = [v["num"] for v in payload.get("versions", []) if not v.get("yanked")]
+          print(versions[0] if versions else "")
+          ')
+          if [ -z "$published" ]; then
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::no published version of moso on crates.io; G18 has no baseline and is skipped for this release only"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+            echo "baseline=$published" >> "$GITHUB_OUTPUT"
+            echo "comparing against $published"
+          fi
+      - name: cargo semver-checks
+        if: steps.baseline.outputs.present == 'true'
+        run: cargo semver-checks check-release --workspace --baseline-version ${{ steps.baseline.outputs.baseline }}
+
+  # ── Step 5: every crate publishes, in dependency order, without publishing ─
+  #
+  # `xtask release` owns the order because the order is a property of the
+  # workspace graph and belongs in code that can compute it, not in a list in a
+  # YAML file that goes stale the first time a crate is added.
+  dry-run:
+    name: 5. publish --dry-run
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-dry-run
+      - name: xtask is present
+        run: |
+          set -euo pipefail
+          if ! cargo metadata --format-version 1 --no-deps \
+            | python3 -c 'import json,sys; sys.exit(0 if any(p["name"]=="xtask" for p in json.load(sys.stdin)["packages"]) else 1)'; then
+            echo '::error::there is no xtask package, so the publish order cannot be computed. A release cannot proceed (53-quality-gates.md § Release process).'
+            exit 1
+          fi
+      - run: cargo run -q -p xtask -- release --dry-run
+
+  # ── Step 7: prebuilt CLI binaries ─────────────────────────────────────────
+  #
+  # `cargo install moso-cli` takes minutes, which 40-cli.md § Distribution calls
+  # an unacceptable first impression. The target set is the one that document
+  # promises: macOS arm64/x64, Linux gnu+musl on arm64/x64, Windows x64.
+  binaries:
+    name: 7. binary (${{ matrix.target }})
+    needs: version
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-24.04-arm
+          - target: aarch64-unknown-linux-musl
+            os: ubuntu-24.04-arm
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: dist-${{ matrix.target }}
+      - name: Build the CLI
+        run: cargo build --release --locked -p moso-cli --bin moso --target ${{ matrix.target }}
+      # ── G22: binary size within budget ──────────────────────────────────
+      #
+      # docs/04-devex/40-cli.md § Distribution: *"The binary is a single static
+      # file with templates embedded. Target size: < 15 MB."* A CLI that has
+      # quietly grown to 40 MB is a slow download and a broken promise, and
+      # nobody notices from a diff — the number only exists at release time,
+      # which is exactly here.
+      - name: The CLI is within its size budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          budget_mb=15
+          target="${{ matrix.target }}"
+          binary="target/${target}/release/moso"
+          [ "${{ runner.os }}" = "Windows" ] && binary="${binary}.exe"
+          bytes=$(wc -c < "$binary" | tr -d ' ')
+          echo "moso ($target): $((bytes / 1024 / 1024)) MiB ($bytes bytes), budget ${budget_mb} MiB"
+          if [ "$bytes" -gt $((budget_mb * 1024 * 1024)) ]; then
+            echo "::error::the moso binary for ${target} is over its ${budget_mb} MiB budget (docs/04-devex/40-cli.md § Distribution). Either shrink it or change the published target with the reason recorded."
+            exit 1
+          fi
+      - name: Archive it
+        id: archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.version.outputs.version }}"
+          target="${{ matrix.target }}"
+          stem="moso-${version}-${target}"
+          mkdir -p "dist/${stem}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp "target/${target}/release/moso.exe" "dist/${stem}/"
+          else
+            cp "target/${target}/release/moso" "dist/${stem}/"
+          fi
+          # The licence travels with the binary: the MIT licence requires the
+          # copyright notice to accompany a distributed copy, and shipping the
+          # file is the whole cost of complying.
+          cp LICENSE README.md "dist/${stem}/"
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "${stem}.zip" "${stem}" > /dev/null
+            asset="${stem}.zip"
+          else
+            tar -czf "${stem}.tar.gz" "${stem}"
+            asset="${stem}.tar.gz"
+          fi
+          # Checksums beside the asset, in the format `sha256sum -c` reads, so a
+          # user can verify a download with a tool they already have.
+          if command -v sha256sum > /dev/null; then
+            sha256sum "${asset}" > "${asset}.sha256"
+          else
+            shasum -a 256 "${asset}" > "${asset}.sha256"
+          fi
+          cat "${asset}.sha256"
+          echo "asset=dist/${asset}" >> "$GITHUB_OUTPUT"
+          echo "name=${asset}" >> "$GITHUB_OUTPUT"
+      # SLSA provenance, step 6 of the release process. The attestation is signed
+      # with the workflow's OIDC identity, so a user can prove an artefact came
+      # from this repository at this commit and not from somebody's laptop.
+      - name: Attest the artefact's provenance
+        if: env.DRY_RUN != 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.archive.outputs.asset }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sha256
+          if-no-files-found: error
+
+  # ── Step 6/7: the GitHub release ──────────────────────────────────────────
+  github-release:
+    name: 8. GitHub release
+    needs: [gates, version, semver, dry-run, binaries]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      # Full history: the release notes are assembled from the commit range
+      # since the previous tag, and a shallow clone has neither.
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: dist-*
+          merge-multiple: true
+          path: dist
+      - name: Assemble the release notes from the commit log
+        run: |
+          set -euo pipefail
+          # There is no CHANGELOG.md (ADR-0018). The notes are the commit
+          # subjects since the previous tag — which is why the subject format
+          # in AGENTS.md is `type(scope): summary` and not free text.
+          previous=$(git describe --tags --abbrev=0 "${{ github.ref_name }}^" 2>/dev/null || true)
+          if [ -n "$previous" ]; then
+            git log --no-merges --pretty='- %s' "${previous}..${{ github.ref_name }}" > release-notes.md
+          else
+            git log --no-merges --pretty='- %s' "${{ github.ref_name }}" > release-notes.md
+          fi
+          test -s release-notes.md
+          head -20 release-notes.md
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          prerelease=""
+          case "${{ github.ref_name }}" in *-*) prerelease="--prerelease" ;; esac
+          gh release create "${{ github.ref_name }}" \
+            --title "moso ${{ needs.version.outputs.version }}" \
+            --notes-file release-notes.md \
+            --verify-tag \
+            $prerelease \
+            dist/*
+
+  # ── Step 5/6: crates.io ───────────────────────────────────────────────────
+  #
+  # Guarded by a deployment environment, which is where the approval requirement
+  # and the registry token live. Publishing is irreversible — crates.io has no
+  # delete — so this is the one step that keeps a human in the loop, and the
+  # human's only job is to say "yes" to a pipeline that has already proved
+  # everything else.
+  publish:
+    name: 9. publish to crates.io
+    needs: [gates, version, semver, dry-run, binaries, github-release]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: crates-io
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo publish, in dependency order
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${CARGO_REGISTRY_TOKEN:-}" ]; then
+            echo '::error::the crates-io environment has no CARGO_REGISTRY_TOKEN secret'
+            exit 1
+          fi
+          # --locked, per 45-security.md: the published crate is built from the
+          # dependency versions that were tested, not from whatever resolves today.
+          cargo run -q -p xtask -- release --publish

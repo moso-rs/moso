@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+  <style>
+    .culm { stroke: #16191d; }
+    .node { stroke: #0b7a63; }
+    @media (prefers-color-scheme: dark) {
+      .culm { stroke: #e6e9ed; }
+      .node { stroke: #45c9a5; }
+    }
+  </style>
+  <rect x="6.5" y="2.5" width="11" height="19" rx="3.2" class="culm" stroke-width="1.9" fill="none" />
+  <path d="M6.5 9.2h11M6.5 14.8h11" class="culm" stroke-width="1.9" stroke-linecap="round" fill="none" />
+  <path d="M12 9.2v5.6" class="node" stroke-width="1.9" stroke-linecap="round" fill="none" />
+</svg>

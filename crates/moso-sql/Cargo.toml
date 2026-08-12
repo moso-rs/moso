@@ -1,0 +1,34 @@
+[package]
+name = "moso-sql"
+description = "Moso's sealed SQL-construction facade: Moso-owned types in, dialect-correct SQL out."
+categories = ["database", "web-programming"]
+keywords = ["moso", "sql", "postgres", "sqlite", "query-builder"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# The construction engine behind the facade (ADR-0005). It is an implementation
+# detail: no `sea_query::` path may appear in a public signature, and
+# `xtask check-sealed` fails the build if one does.
+sea-query.workspace = true
+# Validates the text behind a `Json` bound parameter. Used privately and only
+# privately: `moso-sql` has no `Serialize` bound anywhere in its public API, so
+# its entry in `xtask/allow/sealed.toml` stays empty, which is the point of
+# ADR-0005.
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# Doctests only, to show the shape `moso-orm` uses when it serialises a value
+# and hands the text to `Json::from_json_string`.
+serde.workspace = true
+serde_json.workspace = true

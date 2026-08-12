@@ -1,0 +1,16 @@
+error[E0277]: `Report` cannot be returned from a handler
+ --> tests/ui/handler/missing_into_response.rs
+  |
+  | async fn summary() -> Report {
+  |                       ^^^^^^ not a response
+  |
+help: the trait `HandlerReturn` is not implemented for `Report`
+ --> tests/ui/handler/missing_into_response.rs
+  |
+  | struct Report {
+  | ^^^^^^^^^^^^^
+  = note: help: add `#[derive(moso::Schema)]` to return it as a 200 JSON body
+  = note: help: or add `#[derive(moso::Responder)]` to control the status and the headers
+  = note: help: or wrap it: `Json<Report>`, `Created<Report>`, `Page<Report>`, `Raw<Report>`
+  = note: a handler usually returns `Result<T>`, which documents `T` and the error taxonomy together
+  = note: run `moso check` to see this handler's parameters and response together

@@ -1,0 +1,8 @@
+error: a factory default belongs on `Author`, not on its `email` field
+         note: one `#[factory(..)]` carries every default, so a fixture reads in one place
+         help: delete this line and write it above the struct:
+               #[factory(email = "Email::new(format!(\"a{n}@example.com\")).expect(\"valid\")")]
+  --> tests/ui/orm/factory_default_on_field.rs
+   |
+   |     #[factory(default = "Email::new(format!(\"a{n}@example.com\")).expect(\"valid\")")]
+   |       ^^^^^^^
