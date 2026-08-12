@@ -377,7 +377,7 @@ minijinja = "2.21.0"
 # "cryptography" above. Here it is MIME `Content-Transfer-Encoding`, a
 # `RenderedEmail` attachment surviving JSON on its way through a job payload,
 # a provider webhook signature, and an Azure/GCS request signature.
-base64 = "0.22.1"
+base64 = "0.23.1"
 #
 # `moso-mail` and `moso-storage` add NO cryptography crate of their own. Both
 # use `ring` (declared above) and `base64` (declared just above), for the same
