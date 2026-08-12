@@ -351,7 +351,7 @@ fred = { version = "10.1.0", default-features = false, features = [
 # Pinned to syn 2 because darling 0.23 (the latest release) is built on syn 2;
 # mixing syn 2 and syn 3 in one proc-macro crate makes darling's derive inputs
 # type-incompatible with our own parsing.
-syn = { version = "2.0.119", features = [
+syn = { version = "3.0.3", features = [
     "full",
     "extra-traits",
     "visit-mut",
