@@ -116,7 +116,7 @@ tower = { version = "0.5.3", features = ["util"] }
 # axum's exact pin turns any divergence into a hard resolver error at build time:
 # bumping this must happen in lockstep with the axum upgrade that moves it, which
 # is a reviewed manifest edit rather than a silent drift.
-matchit = "=0.8.4"
+matchit = "=0.9.2"
 # `compression-br`, `compression-gzip` and `cors` are NOT listed here on purpose:
 # they cost ~12 transitive crates and moso-core turns them on from its own
 # `compression` / `cors` cargo features instead. See crates/moso-core/Cargo.toml.
