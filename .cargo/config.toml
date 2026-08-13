@@ -1,0 +1,92 @@
+# Cargo configuration for developing *Moso itself*.
+#
+# This is not the file `moso new` writes into a generated application — that one
+# lives in `crates/moso-cli/src/template.rs` and is free to hard-code a linker,
+# because a generated project is built on a machine whose owner ran
+# `moso doctor` and can fix the flag. This file is built on *every contributor's*
+# machine and on four CI runners, so the rule here is stricter:
+#
+#   **Nothing in this file may make `cargo build` fail on a stock toolchain.**
+#
+# That single rule is why there is no `-fuse-ld=mold` / `-fuse-ld=lld` below.
+# Cargo configuration has no conditionals: a `rustflags` entry for a target is
+# passed to every `rustc` invocation for that target whether or not the linker it
+# names exists, and a missing linker is a hard link error with a message
+# (`cc: error: unrecognized command-line option '-fuse-ld=mold'`) that reads like
+# a broken checkout rather than a missing package. The opt-in recipes are at the
+# bottom of this file; CI enables mold explicitly, after installing it, and
+# verifies it actually ran (see `.github/workflows/ci.yml`, job `linker`).
+#
+# See docs/04-devex/42-compile-times.md.
+
+# ── Codegen settings that are safe everywhere ───────────────────────────────
+#
+# Profile settings given here *override* the ones in the workspace manifest, so
+# this table deliberately contains only keys the manifest does not set:
+# `[profile.dev] debug = 1` and `[profile.dev.package."*"] opt-level = 2` are in
+# `Cargo.toml`, which is where they belong (they are properties of the project,
+# not of one developer's machine).
+#
+# `codegen-units = 512` raises Cargo's dev default (256) so incremental rebuilds
+# spread over more cores. It costs nothing at `opt-level = 0`, where there is no
+# cross-unit optimisation to lose, and it is the one knob from
+# 42-compile-times.md that cannot break a build.
+#
+# Verified, rather than assumed:
+#
+#   cargo check -v -p moso-schema 2>&1 | grep -o 'codegen-units=[0-9]*'
+#   -C codegen-units=512
+[profile.dev]
+codegen-units = 512
+
+# Report future-incompatibility notices on every build rather than once, so a
+# dependency that is about to stop compiling is visible while there is still
+# time to replace it.
+[future-incompat-report]
+frequency = "always"
+
+# ── Aliases: the gates, runnable by hand ────────────────────────────────────
+#
+# Every alias here is exactly what CI runs, so "it passed locally" means the
+# same thing as "it passed in CI". AGENTS.md § Workflow is the prose version
+# of this table.
+[alias]
+# G1 — formatting and lints.
+lint = "clippy --workspace --all-targets --all-features -- -D warnings"
+# G6 — rustdoc must build clean; `--no-deps` because we do not own our
+# dependencies' documentation.
+docs = "doc --workspace --no-deps --all-features"
+# G4 — the diagnostics corpus. Re-record with `TRYBUILD=overwrite cargo ui`.
+ui = "test -p moso-ui-tests"
+# The measurement and structural gates (G5, G7–G10, G12, G14).
+xt = "run --quiet --package xtask --"
+
+# ── Opt-in: a faster linker ─────────────────────────────────────────────────
+#
+# Linking dominates the incremental loop. Do **not** paste these into this file;
+# put them in `~/.cargo/config.toml`, which is merged with this one and is not
+# shared with anybody whose machine lacks the linker.
+#
+# Linux (x86_64-unknown-linux-gnu) — `rust-lld` is already the default as of
+# Rust 1.90, so only reach for mold if you have measured a win:
+#
+#     # ~/.cargo/config.toml
+#     [target.x86_64-unknown-linux-gnu]
+#     rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+#
+# macOS (aarch64-apple-darwin) — Apple's linker from Xcode 15 onwards is already
+# fast; `lld` (from `brew install llvm`) is worth it mainly for large binaries:
+#
+#     # ~/.cargo/config.toml
+#     [target.aarch64-apple-darwin]
+#     rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+#
+# Whichever you choose, check it took effect instead of trusting the flag —
+# a linker flag the driver silently ignores is the most common invisible failure
+# in this area:
+#
+#     cargo build -p moso-cli
+#     # Linux:
+#     readelf -p .comment target/debug/moso | grep -i mold
+#     # macOS:
+#     otool -l target/debug/moso | head -1   # links at all == the flag was accepted

@@ -1,0 +1,17 @@
+# cargo-audit configuration. cargo-audit auto-loads this from the repository root
+# (where CI runs `cargo audit --deny warnings`).
+
+[advisories]
+# RUSTSEC-2026-0235 - rkyv 0.7.46, out-of-bounds reads while validating archives
+# that contain Rc/Arc. rkyv is an OPTIONAL dependency of `rust_decimal` that Moso
+# never activates: `sea-query` (in [workspace.dependencies]) enables only
+# `with-rust_decimal`, which pulls `rust_decimal` with `maths`/`std`, NOT its
+# `rkyv` feature. `cargo tree -i rkyv --all-features` prints "nothing to print" -
+# the archive-validation code is never compiled and is unreachable in every Moso
+# build; rkyv sits in Cargo.lock only as a phantom optional dependency, which is
+# exactly why `cargo audit` (which scans the lockfile literally) flags it while
+# `cargo deny` (which resolves the feature graph) does not. The advisory's fix
+# (rkyv >= 0.8.17) is unreachable transitively: every published `rust_decimal`,
+# including the latest 1.42.1, requires rkyv ^0.7. Remove this entry once
+# `rust_decimal` ships a release built on rkyv >= 0.8.
+ignore = ["RUSTSEC-2026-0235"]

@@ -1,0 +1,44 @@
+[package]
+name = "moso-schema"
+description = "Moso's model layer: the Schema/Validate traits, JSON Schema generation, and constrained types."
+categories = ["data-structures", "web-programming"]
+keywords = ["moso", "schema", "validation", "jsonschema"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# `chrono` date/time types (`DateTime<Utc>`, `NaiveDate`, `NaiveTime`,
+# `NaiveDateTime`) as `Schema` scalars. OFF by default: the base `cargo add moso`
+# tree then carries no date library at all, because the `date`/`date-time`/`time`
+# string *formats* are validated with `time` (already pulled by `cookie`), while
+# `chrono` and its `iana-time-zone` platform binding stay out of the default
+# resolution. Any database-backed build turns this on through `moso-orm`, so a
+# `DateTime<Utc>` field keeps deriving `Schema` the moment an app has a database.
+chrono = ["dep:chrono"]
+
+[dependencies]
+chrono = { workspace = true, optional = true }
+email_address.workspace = true
+indexmap.workspace = true
+once_cell.workspace = true
+regex.workspace = true
+serde = { workspace = true, features = ["rc"] }
+serde_json.workspace = true
+smallvec.workspace = true
+time = { workspace = true, features = ["std", "parsing", "macros"] }
+unicode-segmentation.workspace = true
+url = { workspace = true, features = ["serde"] }
+uuid.workspace = true
+
+[dev-dependencies]
+moso.workspace = true
+serde_json.workspace = true

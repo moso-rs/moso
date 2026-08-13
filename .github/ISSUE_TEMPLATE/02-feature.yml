@@ -1,0 +1,58 @@
+name: Feature request
+description: Something Moso should do and does not
+labels: [enhancement, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Two things worth reading first, because they save you writing an issue
+        that gets closed:
+
+        - **Check `docs/`.** Most of Moso is designed but not yet built. If the
+          thing you want is already specified, the useful issue is "WP-nn is
+          blocking me" with your use case, not a fresh design.
+          `docs/06-reference/63-implementation-status.md` is the honest ledger of
+          what exists.
+        - **Big things go through the RFC process**, not through an issue: any
+          breaking change, any new public trait, any new crate, anything that
+          changes what `moso new` generates, and anything that touches a security
+          default (`docs/05-delivery/52-governance.md` § The RFC process). An issue is the right place
+          to find out whether an RFC is wanted before you write one.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do, and what makes it hard today? Please describe
+        the situation rather than the API you have in mind — the best solution
+        often is not the one either of us thought of first.
+    validations:
+      required: true
+
+  - type: textarea
+    id: sketch
+    attributes:
+      label: What it might look like
+      description: >
+        Optional. If you have a shape in mind, write it as the code you wish you
+        could write. Guide-level, as it would appear in the tutorial.
+      render: rust
+
+  - type: textarea
+    id: prior-art
+    attributes:
+      label: Prior art
+      description: >
+        How do FastAPI, Django, Rails, Laravel, NestJS or another Rust framework
+        handle this? Naming what works elsewhere is the single most useful thing
+        in a feature request; Moso's whole premise is that these problems are
+        solved and the solutions have not reached Rust yet.
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you are doing instead
+      description: >
+        The workaround, however ugly. It tells us how urgent this is and often
+        shows the escape hatch that should exist anyway.

@@ -1,0 +1,8 @@
+error: `Depends<CurrentUser>` cannot be used in middleware
+         = note: middleware runs before extractors, so request dependencies are not yet available
+         = help: read a middleware-inserted value with `req.extensions()`, or move this logic into
+                 a `Dependency` impl and use it in the handler
+  --> tests/ui/extract/depends_in_middleware.rs
+   |
+   |     Depends(user): Depends<CurrentUser>,
+   |                    ^^^^^^^^^^^^^^^^^^^^

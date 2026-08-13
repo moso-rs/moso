@@ -1,0 +1,40 @@
+[package]
+name = "xtask"
+description = "Moso's measurement and gate harness: compile-time benchmarks, expansion budgets, the sealed-facade check, dependency rules, diagnostic coverage, release and CI."
+readme = "README.md"
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+name = "xtask"
+path = "src/lib.rs"
+
+[[bin]]
+name = "xtask"
+path = "src/main.rs"
+# The library and the binary share a name, so rustdoc would write both to
+# `target/doc/xtask/index.html` and warn about the collision
+# (rust-lang/cargo#6313). The binary's API surface is `xtask --help`; the
+# library is the one with documented items, so the binary gives way.
+doc = false
+
+# Deliberately four dependencies, all of them already in `[workspace.dependencies]`
+# and already in the lockfile: this crate must not lengthen anybody's build. In
+# particular there is no error-handling crate (`util::Error` is a string), no
+# `regex` (the parsers are hand-written), and no `rustdoc-types` (the rustdoc
+# JSON is read as `serde_json::Value`, which is what lets one binary read
+# several format versions).
+[dependencies]
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true

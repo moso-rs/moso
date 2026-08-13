@@ -1,0 +1,10 @@
+[package]
+name = "leaky-sql"
+description = "A deliberately unsealed facade. `xtask check-sealed --self-test` fails if this crate passes."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+fake-query-engine = { path = "../fake-query-engine" }

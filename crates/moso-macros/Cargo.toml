@@ -1,0 +1,33 @@
+[package]
+name = "moso-macros"
+description = "Procedural macros for the Moso web framework: #[endpoint], routes!, ep!, #[derive(Schema)], #[derive(Config)]."
+categories = ["web-programming", "development-tools::procedural-macro-helpers"]
+keywords = ["moso", "macros", "proc-macro", "openapi", "schema"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true
+
+# Rule (03-crate-layout.md): a proc-macro crate MUST NOT depend on any runtime
+# Moso crate. Generated code resolves against `::moso::__private::*` instead.
+[dependencies]
+darling.workspace = true
+heck.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+regex.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+moso.workspace = true
+serde_json.workspace = true

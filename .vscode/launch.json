@@ -1,0 +1,60 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "moso (CLI)",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--bin=moso", "--package=moso-cli"],
+        "filter": { "name": "moso", "kind": "bin" }
+      },
+      "args": ["${input:cliArgs}"],
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "example: crud",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--package=example-crud"],
+        "filter": { "name": "example-crud", "kind": "bin" }
+      },
+      "cwd": "${workspaceFolder}/examples/crud"
+    },
+    {
+      "name": "example: minimal",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["build", "--package=example-minimal"],
+        "filter": { "name": "example-minimal", "kind": "bin" }
+      },
+      "cwd": "${workspaceFolder}/examples/minimal"
+    },
+    {
+      "name": "debug tests: current crate",
+      "type": "lldb",
+      "request": "launch",
+      "cargo": {
+        "args": ["test", "--no-run", "--package=${input:crate}", "--all-features"]
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "cliArgs",
+      "type": "promptString",
+      "description": "One argument for `moso` (e.g. `routes`, `--help`; edit args here for multi-word)",
+      "default": "--help"
+    },
+    {
+      "id": "crate",
+      "type": "promptString",
+      "description": "Crate to debug tests for (e.g. moso-core, moso-auth)",
+      "default": "moso-core"
+    }
+  ]
+}

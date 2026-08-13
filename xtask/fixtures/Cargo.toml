@@ -1,0 +1,20 @@
+# The fixture workspace for `xtask check-sealed --self-test`.
+#
+# This is a workspace of its own — note the `[workspace]` table — so the three
+# crates below are invisible to `cargo check --workspace` at the repository
+# root. They must be: `leaky-sql` exists to fail the gate, and a fixture that
+# broke the real build would be deleted within a week.
+#
+# `xtask check-sealed --self-test` builds rustdoc JSON for `leaky-sql` and
+# `sealed-sql` and asserts that the first is caught and the second is clean.
+# Neither crate has a third-party dependency, so the self-test needs no network
+# and adds nothing to anybody's lockfile.
+[workspace]
+resolver = "3"
+members = ["fake-query-engine", "leaky-sql", "sealed-sql"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+license = "Apache-2.0 OR MIT"
+publish = false

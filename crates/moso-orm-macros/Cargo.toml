@@ -1,0 +1,38 @@
+[package]
+name = "moso-orm-macros"
+description = "Procedural macros for Moso's ORM: #[derive(Entity)], #[derive(Projection)], #[derive(Embedded)], #[derive(DbEnum)] and sql!."
+categories = ["database", "development-tools::procedural-macro-helpers"]
+keywords = ["moso", "orm", "macros", "proc-macro", "entity"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true
+
+# Rule 1 (docs/00-foundations/03-crate-layout.md): a proc-macro crate MUST NOT
+# depend on any runtime Moso crate — not even `moso-orm`, whose types this crate
+# generates impls for. Generated code resolves against `::moso::__private::*`
+# and nothing else (decision D6), so the runtime layout can move without
+# touching a macro.
+[dependencies]
+darling.workspace = true
+heck.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+# The expansion tests parse the generated tokens back with `syn` and assert on
+# the paths they name; they never link the runtime crate.
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true

@@ -1,0 +1,57 @@
+# ── Rust ────────────────────────────────────────────────────────────────────
+/target/
+**/*.rs.bk
+*.pdb
+
+# Cargo.lock IS committed: this workspace ships a binary (`moso-cli`) and the
+# lockfile is what makes `cargo tree` dependency-budget checks reproducible.
+
+# ── Local environment ───────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Editors / OS ────────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+# Share the project's editor config (settings, tasks, launch targets, recommended
+# extensions), the way the reference setup does; ignore any other per-user
+# `.vscode/` files a contributor's tooling may drop in.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+*.swp
+*~
+
+# ── Tooling output ──────────────────────────────────────────────────────────
+/coverage/
+*.profraw
+*.profdata
+perf.data*
+flamegraph.svg
+
+# ── CI and release artefacts ────────────────────────────────────────────────
+# Written by the workflows in .github/ when they are run locally (with `act`, or
+# by hand while debugging a gate). None of them is an input to a build.
+/dist/                    # release.yml: the prebuilt CLI archives and checksums
+release-notes.md          # release.yml: the changelog section for one version
+compile-bench.json        # xtask bench-compile output; the baseline is committed elsewhere
+test-output.txt           # captured for the canary-secret grep (G16)
+linker-version.txt        # the linker verification step's evidence
+
+# ── Fuzzing (docs/04-devex/45-security.md, gate G20) ────────────────────────
+# The targets and any *minimised, committed* reproducers are tracked; the corpus
+# and the raw crash inputs are not — a corpus is machine-generated, grows without
+# bound, and is regenerated faster than it is cloned.
+/fuzz/target/
+/fuzz/corpus/
+/fuzz/artifacts/
+
+# Vendored comparison copy of another framework (AGENTS.md: ignore /loco entirely).
+/loco/
+
+# Node / pnpm tooling (website + any root vitest cache)
+node_modules/
+.vite/

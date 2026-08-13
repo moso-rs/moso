@@ -1,0 +1,24 @@
+# Blank issues are disabled, not to make reporting harder, but because the forms
+# ask for the three things that otherwise cost a round trip each: the version, the
+# reproduction, and what you expected instead. A report that arrives complete gets
+# answered in one pass.
+blank_issues_enabled: false
+
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/lowsbarrel/moso/security/advisories/new
+    about: >
+      Never in a public issue. Report privately here — you get an
+      acknowledgement within 48 hours.
+
+  - name: Question, or "how do I …?"
+    url: https://github.com/lowsbarrel/moso/discussions
+    about: >
+      Discussions, not issues. Answers that matter get promoted into the
+      documentation, which is how the next person finds them without asking.
+
+  - name: A confusing compiler error
+    url: https://github.com/lowsbarrel/moso/issues/new?template=03-confusing-error.yml
+    about: >
+      Trait-bound vomit is a bug with an owner and a regression suite. Please do
+      report it — see docs/04-devex/41-diagnostics.md.

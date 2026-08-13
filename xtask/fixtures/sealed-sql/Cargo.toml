@@ -1,0 +1,10 @@
+[package]
+name = "sealed-sql"
+description = "The same facade, sealed. `xtask check-sealed --self-test` fails if this crate is flagged."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+fake-query-engine = { path = "../fake-query-engine" }

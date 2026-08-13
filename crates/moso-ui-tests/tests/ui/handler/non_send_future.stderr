@@ -1,0 +1,14 @@
+error: future cannot be sent between threads safely
+ --> tests/ui/handler/non_send_future.rs
+  |
+  | async fn list() -> Result<NoContent> {
+  |          ^^^^ future created by async block is not `Send`
+  |
+  = help: within `{async block@$DIR/tests/ui/handler/non_send_future.rs:14:10: 14:14}`, the trait `Send` is not implemented for `Rc<u32>`
+note: future is not `Send` as this value is used across an await
+ --> tests/ui/handler/non_send_future.rs
+  |
+  |     let counter = Rc::new(0u32);
+  |         ------- has type `Rc<u32>` which is not `Send`
+  |     tick().await;
+  |            ^^^^^ await occurs here, with `counter` maybe used later

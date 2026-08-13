@@ -1,0 +1,45 @@
+[package]
+name = "moso-openapi"
+description = "OpenAPI 3.1 document model, builders and self-hosted documentation UIs for the Moso web framework."
+categories = ["web-programming", "development-tools"]
+keywords = ["moso", "openapi", "swagger", "documentation"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["scalar"]
+# Which documentation UI this crate can render. Assets are vendored, never
+# fetched from a CDN, because air-gapped deployments are a supported segment.
+scalar = []
+redoc = []
+swagger-ui = []
+
+[dependencies]
+indexmap.workspace = true
+moso-schema.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+moso.workspace = true
+serde_json.workspace = true
+# Offline structural conformance of an assembled document against the official
+# OpenAPI 3.1 meta-schema (tests/meta_schema.rs).
+jsonschema.workspace = true
+# Measures document assembly cost for ~200 operations (benches/boot_assembly.rs).
+criterion.workspace = true
+
+# `harness = false` hands `main` to criterion's own runner instead of libtest,
+# so `cargo build --benches` and `cargo bench` drive `criterion_main!`.
+[[bench]]
+name = "boot_assembly"
+harness = false

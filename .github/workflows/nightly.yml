@@ -1,0 +1,176 @@
+# The gates that are too slow, too flaky-by-nature, or too irrelevant-to-one-PR
+# to sit on the merge path.
+#
+# Everything here is scheduled rather than required. That is deliberate: a gate
+# that blocks a merge must be fast and deterministic, and a 40-minute feature
+# powerset or a fuzz run that finds something on its 9,000th input is neither.
+# The rule is that a red nightly is triaged the next working day
+# (docs/05-delivery/52-governance.md § Maintainer wellbeing sets the 7-day triage
+# label SLA), not that it is ignored.
+name: Nightly
+
+on:
+  schedule:
+    # 03:17 UTC — off the hour, because every project on GitHub schedules on the
+    # hour and the runner queue shows it.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+
+jobs:
+  # ── G11: advisories, against today's database ──────────────────────────────
+  #
+  # The per-PR run of this check can only see advisories that existed when the
+  # pull request was opened. Vulnerabilities are published on their own schedule,
+  # so a dependency set that was clean at merge time is not clean forever, and
+  # this job is the only thing that notices.
+  advisories:
+    name: G11 advisories (fresh database)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit,cargo-deny
+      - run: cargo audit --deny warnings
+      - run: cargo deny check advisories bans licenses sources
+      - name: Report a new advisory as an issue-worthy failure
+        if: failure()
+        run: |
+          echo "::error::a new advisory affects a dependency that was clean at merge time. Bump it, replace it, or add a justified ignore entry to deny.toml."
+
+  # ── G3: the full feature powerset ─────────────────────────────────────────
+  #
+  # Depth 2 is the honest sweet spot: it catches every "feature A compiles only
+  # because feature B happens to be on" bug, which is the entire class that
+  # `--each-feature` in ci.yml misses, without the combinatorial explosion of an
+  # unbounded powerset over a workspace with this many batteries.
+  powerset:
+    name: G3 feature powerset (depth 2)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: powerset
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+      - run: cargo hack check --workspace --feature-powerset --depth 2 --no-dev-deps
+
+  # ── G20: fuzzing ──────────────────────────────────────────────────────────
+  #
+  # The fuzz targets 45-security.md asks for are the request parser, the cursor
+  # decoder, the JSON-Schema generator and the SQL identifier quoter. Until they
+  # exist this job reports their absence every night instead of pretending the
+  # gate is green — an unimplemented gate that says nothing is how a checklist
+  # rots.
+  fuzz:
+    name: G20 fuzz targets
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - name: Are there fuzz targets to run?
+        id: probe
+        run: |
+          set -euo pipefail
+          if [ -f fuzz/Cargo.toml ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::warning file=deny.toml::gate G20 (fuzzing) is not implemented: there is no fuzz/ directory. docs/04-devex/45-security.md names the four targets it wants — the request parser, the signed-cursor decoder, the JSON Schema generator and the SQL identifier quoter."
+          fi
+      # cargo-fuzz needs a nightly compiler for -Z sanitizer support. This is the
+      # one place in the repository that uses nightly, and it is not on the merge
+      # path, so a nightly regression cannot block anybody's work.
+      - uses: dtolnay/rust-toolchain@nightly
+        if: steps.probe.outputs.present == 'true'
+      - uses: taiki-e/install-action@v2
+        if: steps.probe.outputs.present == 'true'
+        with:
+          tool: cargo-fuzz
+      - name: Run every target for five minutes
+        if: steps.probe.outputs.present == 'true'
+        env:
+          RUSTUP_TOOLCHAIN: nightly
+        run: |
+          set -euo pipefail
+          for target in $(cargo fuzz list); do
+            echo "::group::fuzz $target"
+            cargo fuzz run "$target" -- -max_total_time=300
+            echo "::endgroup::"
+          done
+      - name: Keep any crash as evidence
+        if: failure() && steps.probe.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-artifacts
+          path: fuzz/artifacts/
+          if-no-files-found: ignore
+
+  # ── G2 on Windows ─────────────────────────────────────────────────────────
+  #
+  # 53-quality-gates.md § G2 claims Linux, macOS *and* Windows. Windows is here
+  # rather than in ci.yml because nothing in the project has been verified on it
+  # yet: promoting it to a required check before it is green would mean either a
+  # permanently red merge button or a check nobody trusts. It graduates into
+  # ci.yml the first time it passes three nights running.
+  windows:
+    name: G2 test (windows, stable)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      # No DATABASE_URL: the data-layer tests skip, exactly as they do on a
+      # laptop without Docker.
+      - run: cargo nextest run --workspace --all-features --exclude moso-ui-tests --no-fail-fast
+
+  # ── G12: the compile-time trend ───────────────────────────────────────────
+  #
+  # Per-commit gating lives in xtask and needs a reference machine to be
+  # meaningful; what a shared GitHub runner *can* do is record the number every
+  # night so a slow drift is visible as a line rather than discovered as a
+  # complaint. 42-compile-times.md § Budgets is the target table.
+  compile-times:
+    name: G12 compile-time trend
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: xtask bench-compile
+        run: |
+          set -euo pipefail
+          if ! cargo metadata --format-version 1 --no-deps \
+            | python3 -c 'import json,sys; sys.exit(0 if any(p["name"]=="xtask" for p in json.load(sys.stdin)["packages"]) else 1)'; then
+            echo '::warning::gate G12 is unenforced: there is no xtask package, so no compile-time baseline exists. See docs/04-devex/42-compile-times.md § Measurement harness.'
+            exit 0
+          fi
+          cargo run -q -p xtask -- bench-compile --json > compile-bench.json
+          cat compile-bench.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: compile-bench
+          path: compile-bench.json
+          if-no-files-found: ignore

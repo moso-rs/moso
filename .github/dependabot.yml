@@ -1,0 +1,92 @@
+# Dependency updates.
+#
+# docs/04-devex/45-security.md § Supply chain: the dependency count is a budget,
+# every new dependency needs a justification, and the lockfile is committed. That
+# makes an *automated* updater a security control rather than noise — a
+# vulnerability in a transitive crate is fixed by a version bump, and the slowest
+# part of that is noticing.
+#
+# Two rules shape the configuration below:
+#
+#  1. **Group the boring updates, isolate the interesting ones.** A single pull
+#     request per patch bump trains reviewers to rubber-stamp. Patch and minor
+#     bumps arrive grouped and are read as one diff; a major bump arrives alone,
+#     because for the crates in Moso's public API a major bump is a *Moso* major
+#     bump (53-quality-gates.md § Stability policy) and needs a real decision.
+#  2. **Never update the public dependencies silently.** `axum`, `tower`, `http`,
+#     `serde`, `tokio` and `sqlx` appear in Moso's public API and are re-exported
+#     under `moso::deps::*`. Their majors are part of the contract, so they are
+#     called out in their own group where the label makes the stakes obvious.
+version: 2
+
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Rome
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    commit-message:
+      prefix: deps
+      include: scope
+    groups:
+      # The crates whose majors are part of Moso's published contract. Grouped so
+      # that the reviewer sees them together and can decide once.
+      public-api:
+        applies-to: version-updates
+        patterns:
+          - axum
+          - axum-*
+          - tower
+          - tower-*
+          - http
+          - http-*
+          - hyper
+          - hyper-*
+          - tokio
+          - serde
+          - serde_*
+          - sqlx
+          - sqlx-*
+        update-types:
+          - minor
+          - patch
+      # Everything else, in one weekly diff.
+      routine:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
+      # Security fixes never wait for a group.
+      security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # The workflows pin actions by major tag; this keeps those tags moving and, more
+  # importantly, replaces an action that has been deprecated or transferred to a
+  # new owner — a supply-chain risk specific to CI, where the action runs with a
+  # token.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Europe/Rome
+    open-pull-requests-limit: 3
+    labels:
+      - dependencies
+      - ci
+    commit-message:
+      prefix: ci
+    groups:
+      actions:
+        patterns:
+          - "*"

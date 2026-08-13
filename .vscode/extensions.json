@@ -1,0 +1,15 @@
+{
+  "recommendations": [
+    // Rust language server: completion, inline diagnostics, go-to-definition.
+    "rust-lang.rust-analyzer",
+    // Debugging the `moso` binary, the examples and tests (launch.json uses it).
+    "vadimcn.vscode-lldb",
+    // Cargo.toml / config.toml / deny.toml editing with schema awareness.
+    "tamasfe.even-better-toml",
+    // Validates .github/workflows/*.yml against the real action inputs.
+    "github.vscode-github-actions",
+    // The Postgres/Redis containers behind `./scripts/test-db.sh up`.
+    "ms-azuretools.vscode-docker",
+    "anthropic.claude-code"
+  ]
+}

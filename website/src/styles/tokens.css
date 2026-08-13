@@ -1,0 +1,231 @@
+/*
+ * Design tokens.
+ *
+ * Every colour, size and duration used anywhere on the site is declared here
+ * and nowhere else. Two consequences worth knowing: a component stylesheet that
+ * contains a hex value is a bug, and retheming the site is editing one file.
+ *
+ * Contrast ratios in the comments were computed against the surface the token
+ * is meant to sit on, using the WCAG relative luminance formula. Body text
+ * clears 4.5:1 in both themes; chrome and large text clear 3:1.
+ */
+
+:root {
+	/* ---- Neutral surfaces, light ---------------------------------------- */
+	--surface: #ffffff;
+	--surface-subtle: #f7f8fa;
+	--surface-muted: #eef1f4;
+	--surface-raised: #ffffff;
+	--surface-inverse: #16191d;
+
+	/* ---- Ink, light ------------------------------------------------------ */
+	--ink: #16191d; /* 16.9:1 on --surface */
+	--ink-muted: #59616b; /*  6.3:1 on --surface */
+	--ink-subtle: #6b7480; /*  4.8:1 on --surface */
+	--ink-inverse: #f7f8fa;
+
+	/* ---- Lines ----------------------------------------------------------- */
+	--line: #e3e7ec;
+	--line-strong: #cbd2da;
+
+	/* ---- Accent ---------------------------------------------------------- */
+	--accent: #0b7a63; /*  5.3:1 on --surface */
+	--accent-hover: #096151;
+	--accent-soft: #e6f4f0;
+	--accent-line: #9ed3c5;
+	--accent-ink: #ffffff;
+
+	/* ---- Semantic -------------------------------------------------------- */
+	--warn: #8a5a00; /*  4.9:1 on --surface */
+	--warn-soft: #fdf3e0;
+	--warn-line: #e8c98a;
+	--danger: #b3261e; /*  6.0:1 on --surface */
+	--danger-soft: #fdeceb;
+	--danger-line: #f0b3ae;
+	--info: #1f5fa8; /*  5.9:1 on --surface */
+	--info-soft: #e9f1fb;
+	--info-line: #a8c6ea;
+
+	/* ---- Code ------------------------------------------------------------ */
+	/* Bound to the Shiki output in prose.css. The block keeps its own surface
+	   in both themes so that a code sample looks the same in a screenshot
+	   regardless of which theme the reader was in. */
+	--code-surface: #f7f8fa;
+	--code-line: #e3e7ec;
+	--code-bar: #eef1f4;
+	--code-ink: #26292f;
+	--inline-code-surface: #f1f3f6;
+	--inline-code-ink: #1f4f8f;
+
+	/* ---- Type ------------------------------------------------------------ */
+	--font-sans:
+		ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', Inter, Roboto, 'Helvetica Neue',
+		Arial, sans-serif;
+	--font-mono:
+		ui-monospace, 'SF Mono', SFMono-Regular, 'JetBrains Mono', 'Cascadia Code', Menlo, Consolas,
+		monospace;
+
+	/* A 1.2 minor third above the 16px base, rounded to whole pixels so text
+	   lands on the device pixel grid at the default zoom. */
+	--text-2xs: 0.6875rem; /* 11px */
+	--text-xs: 0.75rem; /* 12px */
+	--text-sm: 0.8125rem; /* 13px */
+	--text-base: 0.9375rem; /* 15px */
+	--text-md: 1rem; /* 16px */
+	--text-lg: 1.1875rem; /* 19px */
+	--text-xl: 1.4375rem; /* 23px */
+	--text-2xl: 1.75rem; /* 28px */
+	--text-3xl: 2.125rem; /* 34px */
+	--text-4xl: 2.75rem; /* 44px */
+	--text-5xl: 3.5rem; /* 56px */
+
+	--leading-tight: 1.18;
+	--leading-snug: 1.34;
+	--leading-normal: 1.68;
+
+	--tracking-tight: -0.02em;
+	--tracking-snug: -0.011em;
+	--tracking-wide: 0.06em;
+
+	--weight-normal: 400;
+	--weight-medium: 500;
+	--weight-semibold: 600;
+	--weight-bold: 700;
+
+	/* ---- Space, on a 4px grid -------------------------------------------- */
+	--space-1: 0.25rem;
+	--space-2: 0.5rem;
+	--space-3: 0.75rem;
+	--space-4: 1rem;
+	--space-5: 1.25rem;
+	--space-6: 1.5rem;
+	--space-8: 2rem;
+	--space-10: 2.5rem;
+	--space-12: 3rem;
+	--space-16: 4rem;
+	--space-20: 5rem;
+	--space-24: 6rem;
+
+	/* ---- Radii and depth -------------------------------------------------- */
+	--radius-sm: 4px;
+	--radius: 6px;
+	--radius-lg: 10px;
+	--radius-xl: 14px;
+
+	--shadow-sm: 0 1px 2px rgb(16 22 30 / 0.06);
+	--shadow: 0 2px 8px rgb(16 22 30 / 0.08);
+	--shadow-lg: 0 12px 32px rgb(16 22 30 / 0.14);
+
+	/* ---- Layout ----------------------------------------------------------- */
+	--topbar-height: 3.5rem;
+	--sidebar-width: 16.5rem;
+	--toc-width: 15rem;
+	--content-measure: 46rem;
+	--page-max: 90rem;
+	--gutter: var(--space-6);
+
+	/* ---- Motion ------------------------------------------------------------ */
+	--ease: cubic-bezier(0.32, 0.72, 0, 1);
+	--duration-fast: 90ms;
+	--duration: 160ms;
+
+	--z-sticky: 20;
+	--z-topbar: 40;
+	--z-drawer: 60;
+	--z-dialog: 80;
+
+	color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+	--surface: #0d0f12;
+	--surface-subtle: #14171b;
+	--surface-muted: #1a1e23;
+	--surface-raised: #14171b;
+	--surface-inverse: #f7f8fa;
+
+	--ink: #e6e9ed; /* 15.8:1 on --surface */
+	--ink-muted: #a3acb7; /*  8.5:1 on --surface */
+	--ink-subtle: #8b939e; /*  6.2:1 on --surface */
+	--ink-inverse: #16191d;
+
+	--line: #242a31;
+	--line-strong: #38414b;
+
+	--accent: #45c9a5; /*  9.3:1 on --surface */
+	--accent-hover: #63d8b8;
+	--accent-soft: #10231e;
+	--accent-line: #1f5346;
+	--accent-ink: #08201a;
+
+	--warn: #e0b062; /*  8.2:1 on --surface */
+	--warn-soft: #221a0d;
+	--warn-line: #4d3d1c;
+	--danger: #f08a82; /*  7.9:1 on --surface */
+	--danger-soft: #24120f;
+	--danger-line: #52251f;
+	--info: #86b4ec; /*  8.6:1 on --surface */
+	--info-soft: #101a26;
+	--info-line: #23384f;
+
+	--code-surface: #12151a;
+	--code-line: #242a31;
+	--code-bar: #191d23;
+	--code-ink: #d3d9e3;
+	--inline-code-surface: #1a1e24;
+	--inline-code-ink: #8fc4f0;
+
+	--shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+	--shadow: 0 2px 10px rgb(0 0 0 / 0.45);
+	--shadow-lg: 0 16px 40px rgb(0 0 0 / 0.55);
+
+	color-scheme: dark;
+}
+
+/*
+ * System preference, honoured only when the reader has not chosen. The inline
+ * script in app.html always stamps `data-theme`, so this block matters for the
+ * moment before it runs and for anyone with scripting disabled.
+ */
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--surface: #0d0f12;
+		--surface-subtle: #14171b;
+		--surface-muted: #1a1e23;
+		--surface-raised: #14171b;
+		--surface-inverse: #f7f8fa;
+
+		--ink: #e6e9ed;
+		--ink-muted: #a3acb7;
+		--ink-subtle: #8b939e;
+		--ink-inverse: #16191d;
+
+		--line: #242a31;
+		--line-strong: #38414b;
+
+		--accent: #45c9a5;
+		--accent-hover: #63d8b8;
+		--accent-soft: #10231e;
+		--accent-line: #1f5346;
+		--accent-ink: #08201a;
+
+		--warn: #e0b062;
+		--warn-soft: #221a0d;
+		--warn-line: #4d3d1c;
+		--danger: #f08a82;
+		--danger-soft: #24120f;
+		--danger-line: #52251f;
+		--info: #86b4ec;
+		--info-soft: #101a26;
+		--info-line: #23384f;
+
+		--code-surface: #12151a;
+		--code-line: #242a31;
+		--code-bar: #191d23;
+		--code-ink: #d3d9e3;
+		--inline-code-surface: #1a1e24;
+		--inline-code-ink: #8fc4f0;
+
+		color-scheme: dark;
+	}
+}

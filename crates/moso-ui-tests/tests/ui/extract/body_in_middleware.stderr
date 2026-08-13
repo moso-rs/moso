@@ -1,0 +1,7 @@
+error: `Json<Audit>` cannot be used in middleware
+         = note: middleware runs before the body is read, and taking it here would consume it
+         = help: take the body in the handler, or read it from the request: `let body = req.into_body();`
+  --> tests/ui/extract/body_in_middleware.rs
+   |
+   | async fn audit(Json(entry): Json<Audit>, req: Request, next: Next) -> Result<Response> {
+   |                             ^^^^^^^^^^^

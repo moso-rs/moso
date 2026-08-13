@@ -1,0 +1,32 @@
+[package]
+name = "moso-cli"
+description = "The `moso` command line interface: project scaffolding, route listing and OpenAPI export."
+categories = ["command-line-utilities", "development-tools"]
+keywords = ["moso", "cli", "scaffolding", "web"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "moso"
+path = "src/main.rs"
+# The binary is called `moso` and so is the facade library, so rustdoc would
+# write both to `target/doc/moso/index.html` and warn about the collision
+# (rust-lang/cargo#6313). The binary's API surface is `moso --help`, not
+# docs.rs, so it is the one that gives way.
+doc = false
+
+[dependencies]
+clap.workspace = true
+clap_complete = "4.6.8"
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true

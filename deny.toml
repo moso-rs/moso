@@ -1,0 +1,197 @@
+# cargo-deny — gate G11 of docs/05-delivery/53-quality-gates.md.
+#
+#   cargo install cargo-deny        # or: cargo binstall cargo-deny
+#   cargo deny check                # advisories + bans + licences + sources
+#
+# Run in CI on every pull request (`.github/workflows/ci.yml`, job `deny`) and
+# again nightly against a freshly fetched advisory database, because an advisory
+# published after a merge is exactly the case a per-PR-only check misses.
+#
+# The rationale for an individual dependency lives in the comment above it in
+# `[workspace.dependencies]`; this file is about the *policy*, so a new
+# dependency that violates it fails a build rather than a review.
+
+# ── The dependency graph we are judging ─────────────────────────────────────
+[graph]
+# Every target Moso claims to support. Restricting the set keeps the check
+# honest: without it, cargo-deny reports advisories in crates that only ever
+# compile on Windows or WASM and that Moso never links.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+# The batteries are cargo features, and a feature that is off in the default
+# build still ships in the published crate. Judge all of them.
+all-features = true
+
+[output]
+feature-depth = 1
+
+# ── Security advisories ─────────────────────────────────────────────────────
+[advisories]
+# A vulnerability is a build failure, not a warning. There is no "we will get to
+# it" state: the fix is a version bump, an `ignore` entry with a written reason,
+# or a removed dependency.
+yanked = "deny"
+# Unmaintained crates are only a hard failure for dependencies we chose
+# ourselves. A transitive unmaintained crate is a warning, because the action is
+# on somebody else's repository and blocking every Moso PR on it punishes the
+# wrong people. `cargo deny check advisories` still prints it.
+unmaintained = "workspace"
+# Every entry here MUST carry: the advisory id, why it does not apply to Moso,
+# and the condition under which the entry is removed. An entry without those
+# three is not reviewable and must be rejected.
+ignore = [
+    # (empty — keep it that way)
+]
+
+# ── Licences ────────────────────────────────────────────────────────────────
+#
+# ADR-0018 makes Moso `MIT`. MIT imposes no compatibility constraint to protect,
+# so this list could be opened wide — but it stays curated on purpose: a new
+# licence appearing in the graph should be a deliberate, reviewable act, not
+# something that arrives unnoticed in a transitive crate. There is no
+# `copyleft = "warn"` escape hatch; adding a licence here is a decision.
+[licenses]
+allow = [
+    # Moso's own licence (ADR-0018), and the permissive set the dependency graph
+    # draws from. All are compatible with an MIT distribution; each is listed
+    # because a real crate in the graph uses it. cargo-deny judges workspace
+    # members too, which is the other reason `MIT` has to appear here.
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "MIT-0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "Unlicense",
+    "BSL-1.0",
+    "CC0-1.0",
+    # The ICU crates that `idna`/`url` pull in. Unicode-3.0 is the Unicode
+    # Consortium's permissive licence (the successor to Unicode-DFS-2016); it is
+    # attribution-only and imposes no source obligations.
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+]
+# Below this confidence cargo-deny refuses to guess and asks for a clarification
+# instead of silently accepting a licence file it only half-recognised.
+confidence-threshold = 0.93
+# Scoped, per-crate exceptions — each is a deliberate, reviewable act, as the
+# section header demands, and each is pinned to exactly one crate so it cannot
+# widen the policy by accident.
+#
+# WebAuthn / passkeys (ADR-0015). `webauthn-rs` and its supporting crates are
+# MPL-2.0, and `webpki-roots` (which the passkey HTTP path and rustls both pull)
+# is CDLA-Permissive-2.0. Under Moso's MIT licence both are unproblematic to
+# depend on — MPL-2.0 is *file-level* copyleft that touches only its own files
+# and imposes nothing on an MIT distribution, and CDLA-Permissive-2.0 is
+# attribution-only. They are scoped exceptions rather than blanket allowlist
+# entries so the decision stays recorded against the crates that triggered it,
+# not granted to the whole graph.
+exceptions = [
+    { crate = "webauthn-rs", allow = ["MPL-2.0"] },
+    { crate = "webauthn-rs-core", allow = ["MPL-2.0"] },
+    { crate = "webauthn-rs-proto", allow = ["MPL-2.0"] },
+    { crate = "webauthn-attestation-ca", allow = ["MPL-2.0"] },
+    { crate = "webauthn-authenticator-rs", allow = ["MPL-2.0"] },
+    { crate = "base64urlsafedata", allow = ["MPL-2.0"] },
+    { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
+]
+
+# ── Bans ────────────────────────────────────────────────────────────────────
+[bans]
+# Duplicate versions are a warning, not an error, and that is a considered
+# choice rather than laziness: with ~250 transitive crates, a duplicate is
+# almost always a dependency that has not yet upgraded (today: `rand` 0.8/0.9,
+# `getrandom`, `syn` 1/2 behind `darling`), and the action is on that
+# dependency's maintainer. Making it an error means the only way to merge
+# anything is to add a `skip` entry, and a policy whose enforcement mechanism is
+# "add an exemption" enforces nothing.
+#
+# What *is* gated: the duplicate count. `xtask check-deps` compares the output of
+# `cargo tree --duplicates` against the committed budget in
+# docs/00-foundations/03-crate-layout.md, so the number can go down or stay put
+# but cannot drift upwards unnoticed.
+multiple-versions = "warn"
+# A `*` requirement makes the build non-reproducible and cannot be audited.
+wildcards = "deny"
+allow-wildcard-paths = true
+# Only the crates the workspace itself declares are judged for duplicates; a
+# duplicate that exists solely in a dev-dependency tree does not ship.
+workspace-default-features = "allow"
+external-default-features = "allow"
+
+deny = [
+    # ── Link-time registries (ADR-0004) ──────────────────────────────────────
+    # Moso's registration story is `routes!`/`ep!` plus explicit builder calls.
+    # `inventory` and `ctor` run code before `main`, break on some linkers, and
+    # make "which routes exist" depend on link order — the failure mode ADR-0004
+    # exists to prevent. If either appears in the tree, a dependency has quietly
+    # imported that model.
+    { crate = "inventory", reason = "ADR-0004: no link-time registries. Register with `routes!`/`ep!`." },
+    { crate = "ctor", reason = "ADR-0004: no pre-main code. Use `App::builder()` and an explicit call." },
+
+    # ── Async runtimes other than Tokio (ADR-0011) ───────────────────────────
+    # Two runtimes in one binary is a class of deadlock that users cannot debug.
+    { crate = "async-std", reason = "ADR-0011: Tokio only." },
+    { crate = "smol", reason = "ADR-0011: Tokio only." },
+    { crate = "async-global-executor", reason = "ADR-0011: Tokio only — this crate spawns its own." },
+
+    # ── TLS via rustls, never OpenSSL (45-security.md § Cryptography) ────────
+    # A C OpenSSL dependency turns `cargo build` into a system-library hunt,
+    # breaks the single-static-binary deployment story, and adds the largest
+    # CVE surface in the tree. Moso's own TLS is rustls and stays rustls.
+    #
+    # The one sanctioned path (ADR-0015): `webauthn-rs`' attestation-certificate
+    # verification links OpenSSL and offers no rustls build. The ban therefore
+    # names `wrappers` — OpenSSL is tolerated *only* when its direct parent is
+    # the WebAuthn attestation crate (or the dev-only softtoken authenticator the
+    # passkey tests drive); pulled in by anything else it still fails the build,
+    # so the ban keeps protecting every other edge in the graph.
+    { crate = "openssl", wrappers = ["webauthn-attestation-ca", "webauthn-authenticator-rs", "webauthn-rs-core"], reason = "45-security.md: rustls only, except the ADR-0015 WebAuthn attestation path. Use `rustls`/`rustls-native-certs` everywhere else." },
+    { crate = "openssl-sys", wrappers = ["openssl", "webauthn-attestation-ca", "webauthn-authenticator-rs", "webauthn-rs-core"], reason = "45-security.md: rustls only — allowed solely on the ADR-0015 WebAuthn path." },
+    { crate = "native-tls", reason = "45-security.md: rustls only — this crate links OpenSSL/SChannel." },
+
+    # ── Cryptography we did not vet (45-security.md) ─────────────────────────
+    # "We do not implement primitives. RustCrypto and ring/aws-lc-rs only."
+    { crate = "md5", reason = "45-security.md: broken hash. Use `sha2`." },
+    { crate = "sha-1", reason = "45-security.md: broken hash, and the crate is renamed `sha1`." },
+
+    # ── Randomness (45-security.md § Cryptography policy) ────────────────────
+    # Security-relevant randomness comes from the OS CSPRNG. `rand` itself is
+    # fine and is in the tree transitively; what is banned is a *userspace*
+    # PRNG masquerading as a source of key material.
+    { crate = "rand_isaac", reason = "45-security.md: OS CSPRNG only for security-relevant values." },
+
+    # NOTE — `async-trait` is deliberately *not* banned here, even though rule A7
+    # of 42-compile-times.md and decision D4 forbid it in Moso's own traits
+    # (RPITIT for generic traits, a hand-written `BoxFuture` for the
+    # dyn-compatible ones). A ban in this file applies to the whole graph, and
+    # several perfectly reasonable dependencies still use it in their own public
+    # traits; failing every Moso pull request over somebody else's macro choice
+    # would make the rule look arbitrary and get the ban deleted rather than the
+    # rule obeyed. The rule is scoped where it belongs — to *direct* dependencies
+    # of Moso crates — and is enforced by `xtask check-deps`.
+]
+
+# Crates whose duplicate versions are expected and uninteresting. Kept short on
+# purpose — see the comment on `multiple-versions`.
+skip = []
+skip-tree = []
+
+# ── Sources ─────────────────────────────────────────────────────────────────
+#
+# Everything comes from crates.io. A git dependency in a published crate cannot
+# be published at all, and a git dependency in a dev-dependency is an
+# unversioned, unauditable input to the test suite.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

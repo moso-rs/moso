@@ -1,0 +1,8 @@
+error: only one body extractor is allowed per handler
+
+       note: `Json<CreatePost>` already consumes the request body, and a body can only be read once
+       help: model the payload as one type and take it once, e.g. `Json<CreatePost>` deriving `moso::Schema`
+  --> tests/ui/handler/two_body_extractors.rs
+   |
+   | async fn create(Json(post): Json<CreatePost>, Form(draft): Form<CreatePost>) -> Result<NoContent> {
+   |                                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

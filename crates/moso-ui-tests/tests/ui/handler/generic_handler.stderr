@@ -1,0 +1,8 @@
+error: handlers may not be generic; use a concrete type or a trait object
+
+       note: a route stores one erased handler, so there is no call site at which a type parameter could be chosen
+       help: name the concrete type, or take the dependency behind a trait object: `Inject<Arc<dyn Mailer>>`
+  --> tests/ui/handler/generic_handler.rs
+   |
+   | async fn list<T: Send>(Inject(value): Inject<T>) -> Result<NoContent> {
+   |               ^^^^^^^

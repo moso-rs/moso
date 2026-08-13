@@ -1,0 +1,9 @@
+error: request body extractor must be the last parameter
+
+       note: `Json<CreateUser>` consumes the request body, so no parameter may follow it
+       note: only one body extractor is allowed per handler
+       help: move `Json<CreateUser>` to the end of the parameter list
+  --> tests/ui/handler/body_not_last.rs
+   |
+   | async fn create(Json(body): Json<CreateUser>, Path(id): Path<u32>) -> Result<NoContent> {
+   |                                               ^^^^^^^^^^^^^^^^^^^

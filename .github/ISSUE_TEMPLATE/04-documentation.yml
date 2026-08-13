@@ -1,0 +1,45 @@
+name: Documentation problem
+description: Something in the docs is wrong, missing, or made you guess
+labels: [documentation, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        `docs/` is the source of truth for Moso's design, so a documentation bug
+        is a design bug that has not been noticed yet. If the code and a document
+        disagree, filing this is how the two get reconciled — and per
+        `docs/05-delivery/51-work-packages.md` the fix updates the document in the
+        same pull request as the code.
+
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The file and section, the rustdoc page, or the tutorial chapter.
+      placeholder: docs/02-data/22-relations.md § Preloading — or moso::response::Page
+    validations:
+      required: true
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of problem
+      options:
+        - It is wrong — the code does something else
+        - It is missing — I needed something that is not written down
+        - It is unclear — I read it and still guessed
+        - An example does not compile or does not run
+        - A link is broken
+    validations:
+      required: true
+
+  - type: textarea
+    id: detail
+    attributes:
+      label: Detail
+      description: >
+        For "it is wrong", say what the code actually does. For "it is unclear",
+        say what you concluded and what you did — the wrong conclusion is the
+        useful part.
+    validations:
+      required: true

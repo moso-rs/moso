@@ -1,0 +1,26 @@
+error[E0277]: `Tenant` cannot be used as a handler parameter
+ --> tests/ui/extract/unknown_extractor.rs
+  |
+  | async fn list(tenant: Tenant) -> Result<NoContent> {
+  |                       ^^^^^^ not an extractor
+  |
+help: the trait `Extract` is not implemented for `Tenant`
+ --> tests/ui/extract/unknown_extractor.rs
+  |
+  | struct Tenant {
+  | ^^^^^^^^^^^^^
+  = note: extractors: `Path<T>`, `Query<T>`, `Headers<T>`, `Cookies`, `Inject<T>`, `Depends<T>`
+  = note: a request body is `Json<T>`, `Form<T>`, `Bytes` or `Text`, and must be last
+  = note: help: for an application-lifetime value: `Inject<Tenant>`, registered with `App::provide`
+  = note: help: for a per-request value: `#[derive(moso::Dependency)]` on `Tenant`, then take `Depends<Tenant>`
+  = note: help: to use an Axum extractor unchanged, wrap it: `Opaque<Tenant>`
+  = help: the following other types implement trait `Extract`:
+            ()
+            ClientIp
+            Cookies
+            Depends<T>
+            HeaderMap
+            Headers<T>
+            Inject<T>
+            Method
+          and $N others

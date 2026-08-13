@@ -1,0 +1,574 @@
+# The merge gate.
+#
+# docs/05-delivery/53-quality-gates.md § The gate table lists every gate and what
+# it blocks. This file is the half that blocks a *merge*; release.yml blocks a
+# release and nightly.yml runs what is too slow for either. Job names here are
+# the gate ids (G1, G2, …) so that a red check on a pull request maps to a row in
+# that table without anybody having to guess.
+#
+# A note on the toolchain: rust-toolchain.toml pins the channel to `stable`, and
+# that file wins over `rustup default`. Any job that must run on a *different*
+# toolchain therefore sets `RUSTUP_TOOLCHAIN` in its environment, which is the
+# one thing that outranks the toolchain file. Getting this wrong is silent — the
+# MSRV leg happily reports success while testing stable — so every non-stable job
+# below sets it explicitly and asserts the version it got.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+
+# One run per ref. A force-push cancels the run it superseded instead of
+# competing with it for runners.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Incremental artefacts are never reused across CI runs and cost cache space
+  # and upload time.
+  CARGO_INCREMENTAL: 0
+  RUST_BACKTRACE: 1
+  # Fail rather than hang when crates.io is having a bad day.
+  CARGO_NET_RETRY: 3
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Facts the rest of the matrix needs, computed once from the repository so
+  # nothing has to be duplicated into this file and then drift from it.
+  # ──────────────────────────────────────────────────────────────────────────
+  meta:
+    name: meta (MSRV discovery)
+    runs-on: ubuntu-latest
+    outputs:
+      msrv: ${{ steps.msrv.outputs.msrv }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: msrv
+        name: Read the MSRV from the workspace manifest
+        run: |
+          set -euo pipefail
+          msrv=$(grep -m1 '^rust-version' Cargo.toml | cut -d'"' -f2)
+          if [ -z "$msrv" ]; then
+            echo "::error file=Cargo.toml::[workspace.package] has no rust-version; the MSRV gate (G2) cannot run"
+            exit 1
+          fi
+          echo "msrv=$msrv" >> "$GITHUB_OUTPUT"
+          echo "MSRV is $msrv"
+
+  # ── G1: formatting ────────────────────────────────────────────────────────
+  fmt:
+    name: G1 fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: cargo fmt --all --check
+
+  # ── G1: clippy, as an error ───────────────────────────────────────────────
+  clippy:
+    name: G1 clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: clippy
+      # `--all-targets` so tests, examples and benches are linted too; a lint
+      # that only holds for the library is not the invariant we want.
+      - run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+  # ── G6: rustdoc builds clean ──────────────────────────────────────────────
+  #
+  # [workspace.lints.rustdoc] already promotes broken intra-doc links and friends
+  # to errors, so this job's job is to catch what rustdoc itself reports:
+  # unresolved links into dependencies, invalid HTML, duplicated output paths.
+  docs:
+    name: G6 rustdoc
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: -D warnings
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: docs
+      - run: cargo doc --workspace --no-deps --all-features
+
+  # ── G5 + G6: structural hygiene ───────────────────────────────────────────
+  #
+  # `xtask check-crates` is the designed home for this (see the xtask job
+  # below), but the two properties it exists to protect — every crate forbids
+  # unsafe, every crate denies missing docs — are cheap to check directly and
+  # far too important to depend on a tool landing. Both are inherited from
+  # [workspace.lints.rust], so what this asserts is that every crate actually
+  # *opts in* with `[lints] workspace = true`: a new crate that forgets the
+  # three-line table silently loses both lints, and nothing else notices.
+  hygiene:
+    name: G5 crate hygiene
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: The workspace forbids unsafe, denies missing docs, and every crate opts in
+        shell: python3 {0}
+        run: |
+          import glob
+          import sys
+          import tomllib
+
+          problems = []
+
+          with open("Cargo.toml", "rb") as handle:
+              root = tomllib.load(handle)
+          lints = root["workspace"].get("lints", {}).get("rust", {})
+          if lints.get("unsafe_code") != "forbid":
+              problems.append(
+                  ("Cargo.toml", '[workspace.lints.rust] unsafe_code must be "forbid" '
+                                 "(docs/04-devex/45-security.md)")
+              )
+          if lints.get("missing_docs") != "deny":
+              problems.append(
+                  ("Cargo.toml", '[workspace.lints.rust] missing_docs must be "deny" '
+                                 "(docs/04-devex/46-docs-strategy.md)")
+              )
+
+          # The lints above are *inherited*, so a crate that omits the three-line
+          # `[lints] workspace = true` table silently loses both of them and
+          # nothing else in CI notices. Examples are exempt by design: they are
+          # sample code and say so in their manifests.
+          for manifest_path in sorted(glob.glob("crates/*/Cargo.toml")):
+              with open(manifest_path, "rb") as handle:
+                  manifest = tomllib.load(handle)
+              if manifest.get("lints", {}).get("workspace") is not True:
+                  problems.append(
+                      (manifest_path, "missing '[lints]' with 'workspace = true' — this crate "
+                                      "inherits neither forbid(unsafe_code) nor deny(missing_docs)")
+                  )
+
+          for path, message in problems:
+              print(f"::error file={path}::{message}")
+          sys.exit(1 if problems else 0)
+      - name: No unsafe blocks anywhere, whatever the lint configuration says
+        run: |
+          set -euo pipefail
+          # Belt and braces: this catches a crate that both skips the lint table
+          # and writes unsafe. 45-security.md requires an ADR, a benchmark
+          # justification and a Miri test before any exception.
+          if grep -rnE '(^|[^A-Za-z_])unsafe[[:space:]]*(\{|fn |impl |trait )' --include='*.rs' crates/ examples/; then
+            echo '::error::unsafe appears in the workspace; docs/04-devex/45-security.md requires an ADR, a benchmark and a Miri test first'
+            exit 1
+          fi
+
+  # ── G2: the test suite, on Linux, against a real Postgres 17 ──────────────
+  #
+  # `DATABASE_URL` is what the data-layer tests gate on. It is set here and
+  # nowhere else in this file: the macOS leg deliberately leaves it unset so that
+  # the "skip cleanly without a database" path is exercised on every run rather
+  # than only on contributors' laptops.
+  test-linux:
+    name: G2 test (linux, ${{ matrix.rust }})
+    needs: meta
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, "${{ needs.meta.outputs.msrv }}"]
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: moso
+          POSTGRES_PASSWORD: moso
+          POSTGRES_DB: moso_test
+        ports:
+          # 55433 on the host, matching compose.test.yaml and scripts/test-db.sh,
+          # so `DATABASE_URL` is the same string in CI, in the documentation and
+          # on a contributor's machine. One connection string is one thing to get
+          # wrong instead of three.
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U moso -d moso_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports:
+          # 56379 for the same reason 55433 is used above: one connection string
+          # in CI, in the documentation and on a contributor's machine. Without
+          # this service the `moso-kv` conformance suite and the `moso-jobs`
+          # Redis backend skip silently and CI reports a green run that never
+          # exercised either.
+          - 56379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
+      DATABASE_URL: postgres://moso:moso@localhost:55433/moso_test
+      REDIS_URL: redis://localhost:56379
+      # G16: a value that must never appear in test output. Anything the test
+      # suite reads from here and then leaks — a Debug impl that forgot to
+      # redact, a log line that interpolates a secret — is caught by the grep at
+      # the end of this job rather than by a user.
+      MOSO_CANARY_SECRET: moso-canary-do-not-log-4f6b1c9e
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - name: Assert the toolchain is the one this leg claims to test
+        run: |
+          set -euo pipefail
+          echo "RUSTUP_TOOLCHAIN=$RUSTUP_TOOLCHAIN"
+          rustc --version
+          # rust-toolchain.toml pins `stable`; if RUSTUP_TOOLCHAIN were ignored
+          # this leg would test stable twice and the MSRV gate would be theatre.
+          if [ "$RUSTUP_TOOLCHAIN" != "stable" ]; then
+            rustc --version | grep -q "$RUSTUP_TOOLCHAIN" || {
+              echo "::error::asked for $RUSTUP_TOOLCHAIN but got $(rustc --version) — rust-toolchain.toml is overriding the MSRV leg"
+              exit 1
+            }
+          fi
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test-linux-${{ matrix.rust }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      - name: sqlite3 is available (the second supported dialect, D9)
+        run: sqlite3 --version
+      - name: Postgres 17 is reachable
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends postgresql-client
+          psql "$DATABASE_URL" -c 'select version()'
+      # Asserted rather than assumed: the Redis-backed suites skip when
+      # REDIS_URL is unset or unreachable, so a broken service container would
+      # turn this leg green while testing nothing.
+      - name: Redis is reachable
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends redis-tools
+          test "$(redis-cli -u "$REDIS_URL" ping)" = "PONG"
+      # The UI corpus is excluded here and gated separately (G4): its `.stderr`
+      # snapshots are recorded against one compiler, so running them on the MSRV
+      # leg would fail for a reason that is not a defect.
+      - name: cargo nextest run
+        run: |
+          set -euo pipefail
+          cargo nextest run --workspace --all-features --exclude moso-ui-tests \
+            --no-fail-fast --status-level fail 2>&1 | tee test-output.txt
+      # Doctests are the documentation gate (G6) and nextest cannot run them.
+      # Stable only: they are slow, and a doctest that needs a newer compiler is
+      # a documentation bug the MSRV leg would report in a confusing place.
+      - name: cargo test --doc
+        if: matrix.rust == 'stable'
+        run: |
+          set -euo pipefail
+          cargo test --workspace --all-features --doc 2>&1 | tee -a test-output.txt
+      # ── G16: canary-secret grep ──────────────────────────────────────────
+      - name: No secret reached the test output
+        run: |
+          set -euo pipefail
+          if grep -F "$MOSO_CANARY_SECRET" test-output.txt; then
+            echo "::error::the canary secret appears in test output — something logged, printed or serialised a secret"
+            exit 1
+          fi
+          # The redaction marker Moso prints in place of a secret; its absence is
+          # not an error (not every run touches a secret), but seeing it proves
+          # the grep above is looking at output that contains secret-shaped data.
+          grep -c 'REDACTED' test-output.txt || true
+
+  # ── G2: the same suite on macOS, with no database ─────────────────────────
+  #
+  # A separate job rather than a matrix leg because GitHub service containers
+  # only exist on Linux runners: a `services:` key on a macOS job fails the job
+  # outright.
+  test-macos:
+    name: G2 test (macos, ${{ matrix.rust }})
+    needs: meta
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable, "${{ needs.meta.outputs.msrv }}"]
+    env:
+      RUSTUP_TOOLCHAIN: ${{ matrix.rust }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test-macos-${{ matrix.rust }}
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      # No DATABASE_URL and no REDIS_URL on purpose: this leg proves the suite
+      # still passes on a machine with neither, which is what a first-time
+      # contributor has. "Skips when the server is absent" is a tested property.
+      - name: cargo nextest run (no DATABASE_URL/REDIS_URL — data-layer tests must skip)
+        run: cargo nextest run --workspace --all-features --exclude moso-ui-tests --no-fail-fast --status-level fail
+      - name: cargo test --doc
+        if: matrix.rust == 'stable'
+        run: cargo test --workspace --all-features --doc
+
+  # ── G4: the diagnostics corpus ────────────────────────────────────────────
+  #
+  # Pinned to stable/Linux. `trybuild` compares compiler output byte for byte, so
+  # the snapshots are a function of one toolchain; running them anywhere else
+  # produces diffs that say nothing about Moso. Re-record with
+  # `TRYBUILD=overwrite cargo ui` and review the diff like an API change.
+  ui:
+    name: G4 UI corpus (trybuild)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ui
+      - run: cargo test -p moso-ui-tests
+      - name: A degraded snapshot is a diff, not a silent pass
+        if: failure()
+        run: |
+          echo "::notice::If this failure is an intended message change, re-record with 'TRYBUILD=overwrite cargo ui' and commit the .stderr diff. If it is not, the change degraded a diagnostic — see docs/04-devex/41-diagnostics.md."
+
+  # ── G3 (partial): every feature builds on its own ─────────────────────────
+  #
+  # The full powerset is in nightly.yml; it is ~40 minutes and does not belong on
+  # a pull request. `--each-feature` catches the common failure — a `cfg`
+  # somewhere that only compiles when a *different* feature happens to be on —
+  # in a few minutes.
+  features:
+    name: G3 features (--each-feature)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: features
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hack
+      - run: cargo hack check --workspace --each-feature --no-dev-deps
+
+  # ── G11: licences, advisories, bans, sources ──────────────────────────────
+  deny:
+    name: G11 cargo-deny
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      # All four checks, from deny.toml. `--all-features` is set in [graph]
+      # there, so a battery behind a cargo feature cannot smuggle in a licence.
+      - run: cargo deny check advisories bans licenses sources
+
+  # ── G11: advisories against a freshly fetched database ────────────────────
+  #
+  # cargo-deny reads the advisory DB too; cargo-audit is kept because it is the
+  # tool RustSec itself ships, it reports the fixed version, and having two
+  # independent readers of the same database has caught a stale local clone more
+  # than once.
+  audit:
+    name: G11 cargo-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - run: cargo audit --deny warnings
+
+  # ── G15: the reference application's OpenAPI document ─────────────────────
+  #
+  # Drift is already a test (`cargo test -p example-crud --test openapi` compares
+  # the generated document with the committed one), and that test runs in the
+  # matrix above. What is left is *validity*: a document can match its own
+  # generator byte for byte and still not be legal OpenAPI 3.1. Redocly's linter
+  # validates against the specification, offline after the initial install.
+  openapi:
+    name: G15 OpenAPI validity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: UPDATE_OPENAPI must never be set in CI
+        run: |
+          set -euo pipefail
+          if [ -n "${UPDATE_OPENAPI:-}" ]; then
+            echo "::error::UPDATE_OPENAPI is set; the drift test would rewrite the committed document instead of failing"
+            exit 1
+          fi
+      - name: Validate every committed document against OpenAPI 3.1
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          documents=(examples/*/openapi.json)
+          if [ ${#documents[@]} -eq 0 ]; then
+            echo "::error::no committed openapi.json found under examples/ — G15 has nothing to validate"
+            exit 1
+          fi
+          npx --yes @redocly/cli@1 lint "${documents[@]}" --config redocly.yaml --format=stylish
+
+  # ── G5, G7, G8, G9, G10, G14: the structural gates that need xtask ────────
+  #
+  # These cannot be expressed in shell: "no foreign type in a public signature"
+  # and "every public trait carries on_unimplemented" require reading the
+  # workspace's own API. `xtask` owns them (docs/00-foundations/03-crate-layout).
+  #
+  # The job fails loudly if xtask is missing rather than skipping quietly. Six
+  # gates in 53-quality-gates.md depend on it; a green tick next to a check that
+  # silently did nothing is worse than a red one.
+  xtask:
+    name: G7–G10 xtask checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: xtask
+      - name: xtask is present
+        run: |
+          set -euo pipefail
+          if ! cargo metadata --format-version 1 --no-deps \
+            | python3 -c 'import json,sys; sys.exit(0 if any(p["name"]=="xtask" for p in json.load(sys.stdin)["packages"]) else 1)'; then
+            echo '::error::the xtask package is not in the workspace, so gates G5, G7 (on_unimplemented), G8 (sealed SQL facade), G9 (layering), G10 (dependency budget) and G14 (expansion size) are unenforced'
+            exit 1
+          fi
+      # ── Hard gates ───────────────────────────────────────────────────────
+      # These three have no shell equivalent: each needs the workspace's own
+      # public API, read out of rustdoc JSON. If one fails, a rule that a design
+      # document states as absolute has been broken.
+      - name: xtask check-diagnostics (G7 — every public trait has on_unimplemented)
+        run: cargo run -q -p xtask -- check-diagnostics
+      - name: xtask check-sealed (G8 — ADR-0005, no foreign type in moso-sql/moso-orm)
+        run: cargo run -q -p xtask -- check-sealed
+      - name: xtask check-deps (G9, G10 — layering rules and the dependency budget)
+        run: cargo run -q -p xtask -- check-deps --budget-advisory
+      # `check-crates` is the designed home for G5. The `hygiene` job above
+      # keeps its greps as a second line of defence that needs no tooling, but
+      # this is the gate: it can ask questions grep cannot — whether the two
+      # lint attributes are in the right *order*, whether a crate that declares
+      # `[lints] workspace = true` is one that should, and whether a banned
+      # crate is a *direct* dependency rather than something four levels down
+      # that nobody chose.
+      - name: xtask check-crates (G5 — structural properties of every crate)
+        run: cargo run -q -p xtask -- check-crates
+      # `expand-size` (G14) is a budget whose trend the nightly run records, and
+      # it is KNOWN RED on this tree (152–179 lines against 60). It is run and
+      # reported rather than enforced, because closing it by raising the number
+      # is the one fix that is not allowed. See WP-25.
+      - name: xtask expand-size (G14 — reported, not enforced; known red)
+        continue-on-error: true
+        run: cargo run -q -p xtask -- expand-size
+
+  # ── 42-compile-times.md: the linker configuration is real, not aspirational ─
+  #
+  # `.cargo/config.toml` deliberately does not force a linker, because a flag
+  # naming a linker that is not installed is a hard error on a stranger's
+  # machine. That decision is only defensible if the recommended linker is
+  # actually verified *somewhere*, on a machine we control, by inspecting the
+  # produced binary rather than by trusting that the flag was honoured — a
+  # silently-ignored linker flag is the classic invisible failure here.
+  linker:
+    name: 42 linker takes effect (mold)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linker
+      - run: sudo apt-get update -qq && sudo apt-get install -y --no-install-recommends mold binutils
+      - name: The C driver actually resolves -fuse-ld=mold to mold
+        run: |
+          set -euo pipefail
+          mold --version
+          # The reliable half of the check, and the one that is a hard gate: ask
+          # the driver to run the linker with --version and see who answers. If
+          # the driver ignored the flag, GNU ld answers instead and this fails.
+          cc -fuse-ld=mold -Wl,--version 2>&1 | tee linker-version.txt
+          grep -qi mold linker-version.txt || {
+            echo '::error::cc -fuse-ld=mold did not invoke mold; the linker advice in docs/04-devex/42-compile-times.md does not hold on this image'
+            exit 1
+          }
+      - name: Link the CLI with mold and inspect the artefact
+        env:
+          RUSTFLAGS: -C link-arg=-fuse-ld=mold
+        run: |
+          set -euo pipefail
+          cargo build -p moso-cli --bin moso
+          test -x target/debug/moso
+          # Cross-check: mold stamps itself into .comment, GNU ld does not. This
+          # is reported rather than gated because the marker depends on the mold
+          # build, and the step above already proves the flag was honoured.
+          if readelf -p .comment target/debug/moso 2>/dev/null | grep -qi mold; then
+            echo "mold linked the binary (.comment carries its marker)"
+          else
+            echo "::warning::the binary links but carries no mold marker in .comment; treat the timing figures in docs/04-devex/42-compile-times.md as unconfirmed on this image"
+            readelf -p .comment target/debug/moso || true
+          fi
+
+  # ── The single required check ─────────────────────────────────────────────
+  #
+  # Branch protection points at this one job. Adding a gate above therefore does
+  # not require anybody to remember to update a repository setting, which is the
+  # usual way a new gate ends up advisory.
+  ci:
+    name: CI
+    if: always()
+    needs:
+      - meta
+      - fmt
+      - clippy
+      - docs
+      - hygiene
+      - test-linux
+      - test-macos
+      - ui
+      - features
+      - deny
+      - audit
+      - openapi
+      - xtask
+      - linker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every gate succeeded or was legitimately skipped
+        run: |
+          set -euo pipefail
+          # Some gates are skipped outside pull requests; a skip is acceptable,
+          # a failure or a cancellation is not.
+          results='${{ join(needs.*.result, ',') }}'
+          echo "results: $results"
+          case "$results" in
+            *failure*|*cancelled*)
+              echo "::error::at least one gate did not pass"
+              exit 1 ;;
+          esac

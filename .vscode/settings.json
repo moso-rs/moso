@@ -1,0 +1,19 @@
+{
+  "editor.formatOnSave": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  // Lint on save with the same command CI runs (the `cargo lint` alias), so the
+  // editor and the merge gate agree to the letter.
+  "rust-analyzer.check.command": "clippy",
+  "rust-analyzer.check.allTargets": true,
+  "rust-analyzer.check.extraArgs": ["--", "-D", "warnings"],
+  // Moso's behaviour is feature-gated (orm, auth, otel, passkeys, …); check the
+  // whole tree, not just the default features.
+  "rust-analyzer.cargo.features": "all",
+
+  "files.watcherExclude": { "**/target/**": true },
+  "files.exclude": { "**/target": true },
+  "search.exclude": { "**/target": true, "**/Cargo.lock": true },
+  "files.associations": { "*.toml": "toml" }
+}

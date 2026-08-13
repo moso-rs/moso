@@ -1,0 +1,28 @@
+[package]
+name = "moso-ui-tests"
+description = "The diagnostics regression corpus: deliberately wrong Moso programs with snapshotted compiler output."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+# `orm` is on because the corpus covers the ORM derives too, and `#[derive(Entity)]`
+# only compiles with it: the derive resolves every path it emits against
+# `::moso::__private::*` (decision D6), and that half of `__private` exists only
+# behind the feature. Turning it on here rather than in `moso` is what keeps
+# `xtask check-deps` rule 6 measuring a facade whose defaults pull no driver.
+moso = { workspace = true, features = ["orm"] }
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+trybuild = "1.0.118"

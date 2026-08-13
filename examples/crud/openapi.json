@@ -1,0 +1,1168 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "Moso blog API",
+    "description": "The Moso tutorial application. Posts live in SQLite through Moso's own ORM; the example creates a fresh database on every start.",
+    "version": "0.0.1"
+  },
+  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "this instance"
+    }
+  ],
+  "paths": {
+    "/api/v1/posts": {
+      "get": {
+        "tags": [
+          "posts"
+        ],
+        "summary": "List posts.",
+        "description": "Published posts, newest first. Name yourself with `x-author` to see your own\ndrafts as well; an editor may ask for every draft with `?drafts=true`.\nResults are cursor-paginated: pass the previous page's `next_cursor` back as\n`?cursor=`.",
+        "operationId": "posts_list",
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "description": "Case-insensitive substring match over the title.\n\nThe value is trimmed of leading and trailing whitespace when it is received.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Case-insensitive substring match over the title.\n\nThe value is trimmed of leading and trailing whitespace when it is received.",
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "drafts",
+            "in": "query",
+            "description": "Include drafts. Honoured only for an editor; ignored otherwise.",
+            "schema": {
+              "type": "boolean",
+              "description": "Include drafts. Honoured only for an editor; ignored otherwise.",
+              "default": false
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "The `next_cursor` of the previous page.",
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "cursor",
+              "description": "The `next_cursor` of the previous page.",
+              "maxLength": 2048,
+              "contentEncoding": "base64url"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "description": "How many posts to return. Defaults to the configured `posts.page_size`.",
+            "schema": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint32",
+              "description": "How many posts to return. Defaults to the configured `posts.page_size`.",
+              "minimum": 1,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`Page_PostOut`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_PostOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No post with id {id}",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug `{slug}` is already taken",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Provide at least one field to change; The title must contain at least one letter or digit",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unhandled failure. The `detail` is suppressed unless `http.expose_internal_errors` is set; the `request_id` identifies the occurrence in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is draining for shutdown, or a hard dependency is unavailable. Retryable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "posts"
+        ],
+        "summary": "Create a post.",
+        "description": "The slug is derived from the title and suffixed if it collides, so two posts\ncalled \"Hello\" become `hello` and `hello-2`. Requires the API key.",
+        "operationId": "posts_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePost"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "`PostOut`",
+            "headers": {
+              "location": {
+                "description": "Where the created resource can be fetched.",
+                "schema": {
+                  "type": "string",
+                  "format": "uri-reference",
+                  "examples": [
+                    "/users/42"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON, or nesting past `http.json_depth_max`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The `x-api-key` header is absent or not a valid key.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No post with id {id}",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug `{slug}` is already taken",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeded `http.body_max`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The `Content-Type` is not JSON",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`CreatePost` failed validation",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unhandled failure. The `detail` is suppressed unless `http.expose_internal_errors` is set; the `request_id` identifies the occurrence in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is draining for shutdown, or a hard dependency is unavailable. Retryable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/v1/posts/{id}": {
+      "get": {
+        "tags": [
+          "posts"
+        ],
+        "summary": "Fetch one post.",
+        "description": "A draft is visible only to its author and to an editor. To anybody else it\nis a 404 rather than a 403: a 403 would confirm that the identifier exists.",
+        "operationId": "posts_show",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PostOut`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No post with id {id}",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug `{slug}` is already taken",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Provide at least one field to change; The title must contain at least one letter or digit",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unhandled failure. The `detail` is suppressed unless `http.expose_internal_errors` is set; the `request_id` identifies the occurrence in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is draining for shutdown, or a hard dependency is unavailable. Retryable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "posts"
+        ],
+        "summary": "Delete a post.",
+        "description": "Only the author or an editor may delete. Deleting twice is a 404 the second\ntime: the client asked to remove something that was not there.",
+        "operationId": "posts_destroy",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No content"
+          },
+          "401": {
+            "description": "The `x-api-key` header is absent or not a valid key.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No post with id {id}",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug `{slug}` is already taken",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Provide at least one field to change; The title must contain at least one letter or digit",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unhandled failure. The `detail` is suppressed unless `http.expose_internal_errors` is set; the `request_id` identifies the occurrence in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is draining for shutdown, or a hard dependency is unavailable. Retryable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      },
+      "patch": {
+        "tags": [
+          "posts"
+        ],
+        "summary": "Edit a post.",
+        "description": "Only the author or an editor may edit. Every field of the body is optional;\nan empty body is a 422, because it is more likely to be a bug in the client\nthan a request to do nothing.",
+        "operationId": "posts_update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePost"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "`PostOut`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON, or nesting past `http.json_depth_max`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The `x-api-key` header is absent or not a valid key.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No post with id {id}",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug `{slug}` is already taken",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "The body exceeded `http.body_max`",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "The `Content-Type` is not JSON",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`UpdatePost` failed validation",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unhandled failure. The `detail` is suppressed unless `http.expose_internal_errors` is set; the `request_id` identifies the occurrence in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is draining for shutdown, or a hard dependency is unavailable. Retryable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/api/v1/posts/{id}/publish": {
+      "post": {
+        "tags": [
+          "posts"
+        ],
+        "summary": "Publish a post.",
+        "description": "Publishing an already-published post is a no-op. `Depends<Editor>` is the\nauthorisation rule: a caller without `x-role: editor` never reaches the\nbody, and gets a 403 with the message the dependency declares.",
+        "operationId": "posts_publish",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`PostOut`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The `x-api-key` header is absent or not a valid key.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "only an editor may publish a post",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No post with id {id}",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The slug `{slug}` is already taken",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Provide at least one field to change; The title must contain at least one letter or digit",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many requests.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unhandled failure. The `detail` is suppressed unless `http.expose_internal_errors` is set; the `request_id` identifies the occurrence in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is draining for shutdown, or a hard dependency is unavailable. Retryable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "api_key": []
+          }
+        ]
+      }
+    },
+    "/status": {
+      "get": {
+        "tags": [
+          "status"
+        ],
+        "summary": "Report the instance name, the version, and what it is holding.",
+        "operationId": "health_status",
+        "responses": {
+          "200": {
+            "description": "`Status`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "An unhandled failure. The `detail` is suppressed unless `http.expose_internal_errors` is set; the `request_id` identifies the occurrence in the server log.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The server is draining for shutdown, or a hard dependency is unavailable. Retryable.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreatePost": {
+        "type": "object",
+        "description": "A post, as the API accepts one.",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "Headline, shown in listings.\n\nThe value is trimmed of leading and trailing whitespace when it is received.",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "body": {
+            "type": "string",
+            "description": "The body, in CommonMark.",
+            "minLength": 1,
+            "maxLength": 100000
+          },
+          "publish": {
+            "type": "boolean",
+            "description": "Publish immediately instead of saving a draft.",
+            "default": false
+          }
+        },
+        "required": [
+          "title",
+          "body"
+        ]
+      },
+      "Page_PostOut": {
+        "type": "object",
+        "description": "One page of results, in Moso's standard pagination envelope.",
+        "properties": {
+          "items": {
+            "type": "array",
+            "description": "The rows, in the order the query produced them.",
+            "items": {
+              "$ref": "#/components/schemas/PostOut"
+            }
+          },
+          "next_cursor": {
+            "type": "string",
+            "format": "cursor",
+            "description": "Pass back as `cursor` to fetch the next page. Absent on the last page.",
+            "maxLength": 2048,
+            "contentEncoding": "base64url"
+          },
+          "prev_cursor": {
+            "type": "string",
+            "format": "cursor",
+            "description": "Pass back as `cursor` to fetch the previous page. Absent on the first.",
+            "maxLength": 2048,
+            "contentEncoding": "base64url"
+          },
+          "total": {
+            "type": "integer",
+            "description": "The number of matching rows. Present only when the request asked for a count, because counting is a second query.",
+            "minimum": 0
+          },
+          "page": {
+            "type": "integer",
+            "description": "The 1-based page number this is. Present only on an offset-paginated listing, which is also the one that carries no cursors.",
+            "minimum": 1
+          },
+          "per_page": {
+            "type": "integer",
+            "description": "The page size the listing was asked for. With `total` it gives the page count.",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PostOut": {
+        "type": "object",
+        "description": "A post, as the API returns one.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Primary key."
+          },
+          "slug": {
+            "type": "string",
+            "format": "slug",
+            "description": "The URL-safe name.",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "title": {
+            "type": "string",
+            "description": "Headline."
+          },
+          "body": {
+            "type": "string",
+            "description": "The body, in CommonMark."
+          },
+          "author": {
+            "type": "string",
+            "description": "Who wrote it."
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When it went public, or `null` while it is a draft."
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "When it was created."
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "title",
+          "body",
+          "author",
+          "created_at"
+        ]
+      },
+      "Problem": {
+        "type": "object",
+        "title": "Problem",
+        "description": "An RFC 9457 problem document. Every Moso error is serialised in this shape, as `application/problem+json`.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference",
+            "description": "A URI identifying the problem *class*. Dereferenceable documentation; defaults to `https://moso.rs/errors/{kind}`.",
+            "default": "about:blank",
+            "examples": [
+              "https://moso.rs/errors/validation"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "A short, human-readable summary of the problem class.",
+            "examples": [
+              "Validation failed"
+            ]
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body as RFC 9457 requires.",
+            "examples": [
+              422
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong with *this* request. Absent when disclosure is refused, which is the default for any 5xx."
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri-reference",
+            "description": "The request path, identifying this specific occurrence.",
+            "examples": [
+              "/api/v1/users"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "description": "The correlation id, echoed in the `x-request-id` response header.",
+            "examples": [
+              "01J8XG7K3RQZ4B0N2Y6M9C5V1T"
+            ]
+          },
+          "trace_id": {
+            "type": "string",
+            "description": "The W3C trace id, present when a tracing context was propagated."
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "additionalProperties": true
+      },
+      "Status": {
+        "type": "object",
+        "description": "What this instance is doing.",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The configured name of this instance."
+          },
+          "version": {
+            "type": "string",
+            "description": "The version of the application."
+          },
+          "posts": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "How many posts are stored.",
+            "minimum": 0,
+            "maximum": 18446744073709551615
+          },
+          "requests": {
+            "type": "integer",
+            "format": "uint64",
+            "description": "How many requests this process has served.",
+            "minimum": 0,
+            "maximum": 18446744073709551615
+          }
+        },
+        "required": [
+          "name",
+          "version",
+          "posts",
+          "requests"
+        ]
+      },
+      "UpdatePost": {
+        "type": "object",
+        "description": "The fields a post may be edited with.\n\nEvery field is optional: absent means \"leave it alone\", which is what PATCH\nmeans.",
+        "properties": {
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A new headline.\n\nThe value is trimmed of leading and trailing whitespace when it is received.",
+            "minLength": 3,
+            "maxLength": 200
+          },
+          "body": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A new body.",
+            "minLength": 1,
+            "maxLength": 100000
+          }
+        }
+      },
+      "ValidationProblem": {
+        "type": "object",
+        "title": "ValidationProblem",
+        "description": "An RFC 9457 problem document. Every Moso error is serialised in this shape, as `application/problem+json`.",
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri-reference",
+            "description": "A URI identifying the problem *class*. Dereferenceable documentation; defaults to `https://moso.rs/errors/{kind}`.",
+            "default": "about:blank",
+            "examples": [
+              "https://moso.rs/errors/validation"
+            ]
+          },
+          "title": {
+            "type": "string",
+            "description": "A short, human-readable summary of the problem class.",
+            "examples": [
+              "Validation failed"
+            ]
+          },
+          "status": {
+            "type": "integer",
+            "description": "The HTTP status code, repeated in the body as RFC 9457 requires.",
+            "examples": [
+              422
+            ],
+            "minimum": 100,
+            "maximum": 599
+          },
+          "detail": {
+            "type": "string",
+            "description": "What went wrong with *this* request. Absent when disclosure is refused, which is the default for any 5xx."
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri-reference",
+            "description": "The request path, identifying this specific occurrence.",
+            "examples": [
+              "/api/v1/users"
+            ]
+          },
+          "errors": {
+            "type": "array",
+            "description": "Every field that failed, not just the first. Capped by `validation.max_errors`, default 50.",
+            "items": {
+              "type": "object",
+              "title": "FieldError",
+              "description": "One field-level failure, addressed by a JSON Pointer.",
+              "properties": {
+                "pointer": {
+                  "type": "string",
+                  "format": "json-pointer",
+                  "description": "An RFC 6901 JSON Pointer into the submitted document (`/username`, `/tags/2`), or into a non-body source (`/query/limit`, `/path/id`, `/header/x-tenant`).",
+                  "examples": [
+                    "/tags/2"
+                  ]
+                },
+                "code": {
+                  "type": "string",
+                  "description": "A stable code from the closed `moso_schema::codes` set — `required`, `type`, `len`, `range`, `pattern`, `format`, `enum`, `unique`, `multiple_of` — or an application code prefixed `custom:`. Clients branch on this, never on `message`.",
+                  "examples": [
+                    "len"
+                  ]
+                },
+                "message": {
+                  "type": "string",
+                  "description": "A human-readable message, localised through the application's `MessageProvider`. Never part of the contract.",
+                  "examples": [
+                    "must be between 1 and 24 characters"
+                  ]
+                },
+                "params": {
+                  "type": "object",
+                  "description": "The constraint's parameters, so a client can render its own message.",
+                  "additionalProperties": true
+                }
+              },
+              "required": [
+                "pointer",
+                "code",
+                "message"
+              ]
+            },
+            "minItems": 1
+          },
+          "request_id": {
+            "type": "string",
+            "description": "The correlation id, echoed in the `x-request-id` response header.",
+            "examples": [
+              "01J8XG7K3RQZ4B0N2Y6M9C5V1T"
+            ]
+          },
+          "trace_id": {
+            "type": "string",
+            "description": "The W3C trace id, present when a tracing context was propagated."
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status",
+          "errors"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "securitySchemes": {
+      "api_key": {
+        "type": "apiKey",
+        "name": "x-api-key",
+        "in": "header"
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "posts",
+      "description": "Everything you can do with a post."
+    },
+    {
+      "name": "status",
+      "description": "What this instance is doing."
+    }
+  ]
+}

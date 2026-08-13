@@ -1,0 +1,20 @@
+[package]
+name = "example-minimal"
+description = "The 30-line Moso hello world."
+publish = false
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+# NOTE: examples deliberately do NOT inherit [workspace.lints]. They are sample
+# applications and must look exactly like code a user would write.
+
+[dependencies]
+moso.workspace = true
+tokio.workspace = true
+
+[dev-dependencies]
+moso-test.workspace = true

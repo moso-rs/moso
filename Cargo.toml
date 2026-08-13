@@ -1,0 +1,443 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/moso",
+    "crates/moso-core",
+    "crates/moso-schema",
+    "crates/moso-openapi",
+    "crates/moso-macros",
+    "crates/moso-sql",
+    "crates/moso-orm",
+    "crates/moso-orm-macros",
+    "crates/moso-orm-tests",
+    "crates/moso-migrate",
+    "crates/moso-kv",
+    "crates/moso-auth",
+    "crates/moso-authz",
+    "crates/moso-authz-tests",
+    "crates/moso-jobs",
+    "crates/moso-mail",
+    "crates/moso-storage",
+    "crates/moso-test",
+    "crates/moso-cli",
+    "crates/moso-ui-tests",
+    "examples/minimal",
+    "examples/crud",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.94"
+license = "MIT"
+repository = "https://github.com/moso-rs/moso"
+homepage = "https://github.com/moso-rs/moso"
+authors = ["Alessandro Zucchiatti <lowsbarrel@gmail.com>"]
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+
+# Documentation is a shipped artefact with a release gate
+# (docs/04-devex/46-docs-strategy.md), so the things that quietly rot it — a
+# link that stops resolving, a code fence whose language tag is a typo and is
+# therefore never compiled, a `[Vec<T>]` that renders as a broken link — are
+# errors rather than warnings. This is `rustdoc::all` minus the members that are
+# noise for this workspace, listed individually so that a new lint joining the
+# group cannot break the build without anyone choosing it.
+#
+# `private_doc_tests` is deliberately absent: `moso-macros` documents its
+# private modules with examples that *run* under `cargo test --doc` even though
+# they never render, which is exactly the trade we want.
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_html_tags = "deny"
+invalid_rust_codeblocks = "deny"
+bare_urls = "deny"
+unescaped_backticks = "deny"
+redundant_explicit_links = "deny"
+
+# Every third-party dependency is declared exactly once, here, with its resolved
+# version. Members refer to them with `dep.workspace = true` and may only ADD
+# features on top. This is how the workspace avoids version skew.
+# The rationale for each entry is the comment above it.
+[workspace.dependencies]
+
+# ── Moso crates ─────────────────────────────────────────────────────────────
+# All Moso crates version in lockstep and are released together, so the internal
+# requirements are exact pins (docs/00-foundations/03-crate-layout.md).
+moso = { version = "=0.0.1", path = "crates/moso" }
+moso-core = { version = "=0.0.1", path = "crates/moso-core" }
+moso-schema = { version = "=0.0.1", path = "crates/moso-schema" }
+moso-openapi = { version = "=0.0.1", path = "crates/moso-openapi" }
+moso-macros = { version = "=0.0.1", path = "crates/moso-macros" }
+moso-sql = { version = "=0.0.1", path = "crates/moso-sql" }
+moso-orm = { version = "=0.0.1", path = "crates/moso-orm" }
+moso-orm-macros = { version = "=0.0.1", path = "crates/moso-orm-macros" }
+moso-migrate = { version = "=0.0.1", path = "crates/moso-migrate" }
+moso-kv = { version = "=0.0.1", path = "crates/moso-kv" }
+moso-auth = { version = "=0.0.1", path = "crates/moso-auth" }
+moso-authz = { version = "=0.0.1", path = "crates/moso-authz" }
+moso-jobs = { version = "=0.0.1", path = "crates/moso-jobs" }
+moso-mail = { version = "=0.0.1", path = "crates/moso-mail" }
+moso-storage = { version = "=0.0.1", path = "crates/moso-storage" }
+moso-test = { version = "=0.0.1", path = "crates/moso-test" }
+
+# ── HTTP substrate ──────────────────────────────────────────────────────────
+axum = { version = "0.8.9", features = [
+    "http1",
+    "http2",
+    "json",
+    "query",
+    "tokio",
+    "matched-path",
+    "original-uri",
+    "form",
+    "macros",
+] }
+tower = { version = "0.5.3", features = ["util"] }
+# The radix router axum itself routes with. `moso-core` needs it to resolve a
+# request path to a route *pattern* before routing, so the `route` span field,
+# the `route` metric label and `timeout_exempt` all read the same answer axum
+# will reach. Matching with a hand-written matcher would disagree with axum in
+# exactly the backtracking cases that matter, and a wrong label is worse than a
+# coarse one. It costs nothing against the rule-6 budget: axum already puts it in
+# the graph.
+#
+# The requirement is an EXACT pin, and deliberately so. axum 0.8 itself depends
+# on `matchit = "=0.8.4"`, so "byte-identical to axum" is only guaranteed while
+# `moso-core` resolves the *same* exact version. A caret `"0.8.4"` would let a
+# `cargo update` move `moso-core` to a future `matchit` 0.9 (semver-incompatible
+# with axum's `=0.8.4`) as a *second* copy in the graph, and `deny.toml`'s
+# `multiple-versions = "warn"` would not fail the build on the split. Mirroring
+# axum's exact pin turns any divergence into a hard resolver error at build time:
+# bumping this must happen in lockstep with the axum upgrade that moves it, which
+# is a reviewed manifest edit rather than a silent drift.
+matchit = "=0.8.4"
+# `compression-br`, `compression-gzip` and `cors` are NOT listed here on purpose:
+# they cost ~12 transitive crates and moso-core turns them on from its own
+# `compression` / `cors` cargo features instead. See crates/moso-core/Cargo.toml.
+tower-http = { version = "0.7.0", features = [
+    "trace",
+    "timeout",
+    "limit",
+    "set-header",
+    "normalize-path",
+    "catch-panic",
+    "request-id",
+    "sensitive-headers",
+] }
+hyper = { version = "1.11.0", features = ["server", "http1", "http2"] }
+hyper-util = { version = "0.1.20", features = [
+    "tokio",
+    "server",
+    "server-auto",
+    "service",
+] }
+tokio = { version = "1.53.1", features = [
+    "rt-multi-thread",
+    "macros",
+    "time",
+    "sync",
+    "net",
+    "io-util",
+] }
+http = "1.4.2"
+http-body = "1.1.0"
+http-body-util = "0.1.4"
+bytes = "1.12.1"
+mime = "0.3.17"
+cookie = { version = "0.18.1", features = ["percent-encode"] }
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "json",
+    "charset",
+    "http2",
+    "form",
+    "multipart",
+    "cookies",
+    "stream",
+] }
+
+# ── serde and friends ───────────────────────────────────────────────────────
+serde = { version = "1.0.229", features = ["derive"] }
+# `preserve_order` makes serde_json::Map an IndexMap, which is what makes the
+# committed openapi.json byte-stable (D15).
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+serde_urlencoded = "0.7.1"
+serde_path_to_error = "0.1.20"
+form_urlencoded = "1.2.2"
+percent-encoding = "2.3.2"
+toml = "1.1.4"
+
+# ── async / util ────────────────────────────────────────────────────────────
+futures-util = "0.3.33"
+pin-project-lite = "0.2.17"
+indexmap = { version = "2.14.0", features = ["serde"] }
+smallvec = "1.15.2"
+once_cell = "1.21.4"
+arc-swap = "1.9.2"
+zeroize = "1.9.0"
+tracing = "0.1.44"
+# The subscriber `moso_core::observability::init` installs, behind moso-core's
+# `tracing` feature (on by default). `env-filter` is the `RUST_LOG` grammar
+# `TracingConfig::level` falls back to; `json` is the production log format;
+# `ansi` colours the `pretty`/`compact` dev formats; `registry` is what lets the
+# OTLP layer below stack onto the same subscriber. `default-features = false`
+# drops `tracing-log`, which we do not use. This is the one observability crate
+# that counts against the rule-6 budget — the OpenTelemetry stack under it is
+# off by default and does not.
+tracing-subscriber = { version = "0.3.23", default-features = false, features = [
+    "std",
+    "fmt",
+    "ansi",
+    "env-filter",
+    "json",
+    "registry",
+] }
+# ── OpenTelemetry (moso-core `otel` feature, OFF by default) ─────────────────
+# OTLP span export driven by `TracingConfig::otlp_endpoint`. Held as a matched
+# set: `tracing-opentelemetry` 0.32 tracks `opentelemetry` 0.31, so the SDK and
+# the OTLP exporter stay on 0.31 to agree with it — a newer `opentelemetry`
+# would land as a *second* version in the graph, not an upgrade. The exporter is
+# `grpc-tonic` with NO `tls` feature on purpose: the collector endpoint is
+# plaintext h2c (`http://otel-collector:4317`), so no TLS stack is linked and
+# `deny.toml`'s OpenSSL ban keeps holding — a `tls`/`tls-roots` feature would
+# pull OpenSSL back in through tonic. All four are optional and are compiled
+# only with `--features otel`.
+opentelemetry = "0.31"
+opentelemetry_sdk = { version = "0.31", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.31", default-features = false, features = [
+    "grpc-tonic",
+    "trace",
+] }
+tracing-opentelemetry = "0.32"
+thiserror = "2.0.19"
+humantime = "2.4.0"
+dotenvy = "0.15.7"
+ulid = { version = "3.0.0", features = ["serde"] }
+
+# ── model layer ─────────────────────────────────────────────────────────────
+regex = "1.13.1"
+unicode-segmentation = "1.13.3"
+url = "2.5.8"
+email_address = "0.2.9"
+uuid = { version = "1.24.0", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4.45", features = ["serde"] }
+# `moso-schema` validates the `date`, `date-time` and `time` string formats with
+# `time`, not `chrono`, so the base `cargo add moso` tree carries one date library
+# rather than two: `time` is already pulled by `cookie` (moso-core), whereas
+# `chrono` drags in `iana-time-zone` (a platform C binding) and `num-traits`.
+# `chrono` stays for the data-layer crates — an `orm` timestamp is a
+# `DateTime<Utc>` — where it is compiled regardless. See moso-schema's `chrono`
+# feature.
+time = { version = "0.3.54", default-features = false }
+
+# ── cryptography ────────────────────────────────────────────────────────────
+# `moso-auth` signs and verifies JWTs (EdDSA/ES256/RS256/HS256), hashes API-key
+# secrets, and computes HMAC-SHA1 for TOTP. `ring` is chosen over the RustCrypto
+# family for one reason that outweighs ergonomics: it is **already in the
+# workspace's dependency graph** — sqlx's `tls-rustls-ring-webpki` puts it there
+# — so the whole of `moso-auth`'s cryptography costs zero additional crates
+# against the rule-6 budget. It also means one audited implementation of
+# constant-time arithmetic rather than five.
+ring = "0.17.14"
+# `moso-core` mints a per-response Content-Security-Policy nonce for the
+# documentation UI, and a nonce is only worth anything if it comes from the OS
+# CSPRNG. `getrandom` is the thin, no-runtime wrapper over that syscall
+# (`getrandom(2)` / `BCryptGenRandom` / `arc4random_buf`), and it is **already in
+# the graph** — `ulid`, `uuid` and `rand` all pull the same `0.4` line — so it
+# costs zero additional crates against the rule-6 budget.
+getrandom = "0.4"
+# NOTE: base64url (the three segments of a JWT, an API-key secret, a JWK
+# coordinate) uses the single `base64` entry declared under "mail, storage &
+# realtime" below. It is deliberately NOT redeclared here — one version string
+# per crate is the workspace rule.
+
+# ── TLS client (for `RemoteJwks`) ───────────────────────────────────────────
+# `RemoteJwks` fetches another service's JWKS document over HTTPS, so `moso-auth`
+# needs a *client* TLS stack. These three are declared here rather than picked up
+# transitively so the version is visible and single-sourced, but every one of
+# them is already compiled for any build containing sqlx, and the `ring` provider
+# is named explicitly: two rustls crypto providers in one process is a runtime
+# panic, not a compile error, and sqlx has already chosen ring. The HTTP request
+# itself is written straight onto the socket, so no client library is involved.
+rustls = { version = "0.23.42", default-features = false, features = [
+    "ring",
+    "std",
+    "tls12",
+    "logging",
+] }
+tokio-rustls = { version = "0.26.4", default-features = false, features = [
+    "ring",
+    "tls12",
+    "logging",
+] }
+webpki-roots = "1.0.9"
+rustls-pki-types = "1.15.1"
+
+# ── SQL construction ────────────────────────────────────────────────────────
+# ADR-0005: `sea-query` is the query-construction engine *behind* `moso-sql`'s
+# sealed facade. It must never appear in a public signature — `xtask
+# check-sealed` fails the build if it does — and it is therefore declared here
+# with the narrowest feature set that still lets a bound parameter round-trip:
+# the three value families a Postgres/SQLite app actually binds (json, uuid,
+# timestamps, numerics, arrays, intervals) plus the two backends we support.
+# `default-features = false` drops `backend-mysql` (ADR-0010: not in this
+# build), `audit` and `derive` (we generate no sea-query entities).
+sea-query = { version = "1.0.1", default-features = false, features = [
+    "backend-postgres",
+    "backend-sqlite",
+    "thread-safe",
+    "itoa",
+    "with-json",
+    "with-chrono",
+    "with-uuid",
+    "with-rust_decimal",
+    "postgres-array",
+    "postgres-interval",
+] }
+
+# ── SQL execution ───────────────────────────────────────────────────────────
+# ADR-0005 seals *construction* (`sea-query`, above) and deliberately does not
+# seal *execution*: `Db::pool()` hands out sqlx's pool as the documented
+# escape hatch (non-negotiable N8), so sqlx's major version is part of Moso's
+# semver contract and `xtask/allow/sealed.toml` names the escaping paths one by
+# one. `default-features = false` drops `any` (we dispatch on our own `Backend`
+# enum, and `AnyPool` cannot do `RETURNING` type inference), `macros` (ADR:
+# never require a live database to compile) and `migrate` (`moso-migrate` owns
+# the runner and the ledger table).
+sqlx = { version = "0.9.0", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls-ring-webpki",
+    "postgres",
+    "sqlite-bundled",
+    "uuid",
+    "chrono",
+    "json",
+    "rust_decimal",
+] }
+
+# ── KV & caching ────────────────────────────────────────────────────────────
+# `docs/02-data/25-kv-cache.md` names both of these by name, and both are behind
+# a cargo feature of `moso-kv` so that a build that does not use the backend
+# does not compile it.
+#
+# `moka` backs the `memory` backend. `default-features = false` drops the
+# blocking `sync` cache — Moso is Tokio-only (ADR-0011) — and `future` is the
+# async one. `atomic64` is on because every supported target has 64-bit atomics
+# and the fallback is a `Mutex<u64>` on the hot path.
+moka = { version = "0.12.15", default-features = false, features = [
+    "future",
+    "atomic64",
+] }
+# `fred` backs the `redis` backend. The `i-*` features are per-command-family
+# and are listed one by one rather than through `i-std`, so that adding a
+# command family is a deliberate decision: these are exactly the families
+# `KvStore` exposes. `enable-rustls-ring` and not `enable-rustls` because sqlx
+# is already on rustls' *ring* provider and two providers in one process is a
+# runtime panic, not a compile error.
+fred = { version = "10.1.0", default-features = false, features = [
+    "i-keys",
+    "i-lists",
+    "i-sets",
+    "i-sorted-sets",
+    "i-pubsub",
+    "i-scripts",
+    "i-server",
+    "i-cluster",
+    "transactions",
+    "replicas",
+    "subscriber-client",
+    "sentinel-client",
+    "enable-rustls-ring",
+] }
+
+# ── proc-macro toolchain ────────────────────────────────────────────────────
+# Pinned to syn 2 because darling 0.23 (the latest release) is built on syn 2;
+# mixing syn 2 and syn 3 in one proc-macro crate makes darling's derive inputs
+# type-incompatible with our own parsing.
+syn = { version = "2.0.119", features = [
+    "full",
+    "extra-traits",
+    "visit-mut",
+    "parsing",
+    "printing",
+    "proc-macro",
+    "derive",
+] }
+quote = "1.0.47"
+proc-macro2 = "1.0.107"
+darling = "0.23.0"
+heck = "0.5.0"
+
+# ── mail, storage & realtime ────────────────────────────────────────────────
+# `docs/03-batteries/34-mail-storage-realtime.md` names `minijinja` by name: it
+# is Jinja2-compatible, so designers and language models already know the
+# syntax, and it carries no transitive dependency beyond `serde`. Its
+# `Template::undeclared_variables` is what lets `#[derive(Email)]` check a
+# template's variables against the struct's fields at compile time.
+minijinja = "2.21.0"
+# The one base64 entry for the whole workspace, shared with `moso-auth` (JWT
+# segments, API-key secrets, JWK coordinates) — see the note under
+# "cryptography" above. Here it is MIME `Content-Transfer-Encoding`, a
+# `RenderedEmail` attachment surviving JSON on its way through a job payload,
+# a provider webhook signature, and an Azure/GCS request signature.
+base64 = "0.22.1"
+#
+# `moso-mail` and `moso-storage` add NO cryptography crate of their own. Both
+# use `ring` (declared above) and `base64` (declared just above), for the same
+# reason `moso-auth` does: `ring` is already in the graph through sqlx's
+# `tls-rustls-ring-webpki`, so SHA-256 content checksums, HMAC-SHA256 signed
+# URLs, AWS SigV4, Azure shared key, Mailgun/Resend webhook HMACs, SendGrid's
+# ECDSA-P256 webhook signature and SES/SNS's RSA-PKCS1 one all cost zero
+# additional crates. `ring::constant_time` and `ring::hmac::verify` are also
+# the reason none of those comparisons is a `==` that leaks through timing.
+#
+# SMTP transport only — Moso writes its own MIME (one implementation shared by
+# the `.eml` file backend and the wire), and hands lettre the finished bytes
+# through `AsyncTransport::send_raw`. `rustls` and not `native-tls` because sqlx
+# is already on rustls' *ring* provider and two providers in one process is a
+# runtime panic. Behind `moso-mail/mail-smtp` only.
+lettre = { version = "0.11.22", default-features = false, features = [
+    "tokio1",
+    "tokio1-rustls-tls",
+    "smtp-transport",
+    "pool",
+] }
+
+# ── CLI ─────────────────────────────────────────────────────────────────────
+clap = { version = "4.6.4", features = ["derive"] }
+
+# ── Dev-only tooling (tests and benches; never linked into a published crate) ─
+# Everything below is used exclusively from `[dev-dependencies]`, so it is absent
+# from the default resolution `xtask check-deps` rule 6 counts and cannot move
+# the third-party crate budget. It is hoisted here anyway because the workspace
+# rule is "one version string per crate, declared once, with its rationale".
+#
+# `jsonschema` validates an assembled OpenAPI document against the official
+# OpenAPI 3.1 meta-schema in `moso-openapi`'s conformance test. It bundles the
+# JSON Schema 2020-12 dialect, so the check runs fully offline; `default-features
+# = false` drops the optional `resolve-http`/`resolve-file` retrievers, keeping
+# the test network-free by construction rather than by convention.
+jsonschema = { version = "0.49.9", default-features = false }
+# `criterion` backs the `moso-openapi` boot-assembly benchmark that measures the
+# cost of assembling a ~200-operation document against the sub-15 ms design
+# budget. `default-features = false` drops the `rayon`/`plotters` HTML-report
+# stack — the benchmark reports its numbers to stdout, which is all CI reads.
+criterion = { version = "0.8.2", default-features = false }
+
+[profile.dev]
+debug = 1
+
+# Dependencies are optimised even in dev: they are compiled once and then are
+# the bulk of the runtime cost of `moso dev`.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "debuginfo"

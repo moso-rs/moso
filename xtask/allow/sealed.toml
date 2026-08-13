@@ -1,0 +1,54 @@
+# The sealed-facade allowlist — read by `xtask check-sealed`.
+#
+# ADR-0005: no foreign type may appear in the public API of `moso-sql` or
+# `moso-orm`, so that the query engine underneath can be replaced in a patch
+# release. `moso_*`, `std`, `core` and `alloc` are always allowed and are not
+# listed here. Everything else needs an entry, and every entry needs a reason —
+# `xtask check-sealed` refuses to run on an allowlist with a blank one, because
+# an allowlist whose entries have no reasons is a list nobody can ever shorten.
+#
+# Adding a line here is an API decision: it makes the named crate's major
+# version part of Moso's semver contract. Say so in the reason.
+
+# ── every sealed crate ──────────────────────────────────────────────────────
+[every_sealed_crate]
+crates = [
+  { name = "serde", reason = "`Serialize`/`Deserialize` bounds and derives are part of the model contract already (docs/00-foundations/03, `moso::deps`), so serde's major version is a Moso breaking change with or without this entry." },
+]
+
+# ── moso-sql ────────────────────────────────────────────────────────────────
+# Deliberately empty. `moso-sql` is the risk-containment crate: its whole reason
+# for existing is that `sea-query` — or whatever replaces it — is invisible from
+# outside. If a line ever needs to be added here, that is the moment to ask
+# whether ADR-0005 is still being honoured.
+[crate."moso-sql"]
+crates = []
+paths = []
+
+# ── moso-orm ────────────────────────────────────────────────────────────────
+# The ORM's public API talks about *column values*, and those are ordinary
+# domain types a user already names in an entity. Keeping them out would mean
+# wrapping `Uuid` in a Moso newtype, which buys nothing: these crates are
+# already in `moso-schema`'s public API (docs/00-foundations/03), so their
+# versions are already in the contract.
+[crate."moso-orm"]
+crates = [
+  { name = "chrono", reason = "`DateTime<Utc>` is a column type users declare in their entities; already public in moso-schema." },
+  { name = "uuid", reason = "`Uuid` is the default primary-key type; already public in moso-schema via `Id<E>`." },
+  { name = "url", reason = "`Url` is a constrained model type; already public in moso-schema." },
+]
+paths = [
+  # `sqlx` is the *execution* engine, not the construction engine, and ADR-0005
+  # only seals construction. Even so it is sealed by path rather than by crate,
+  # so that a pool type or a row type cannot slip out unnoticed: each escape is
+  # named, and `Db::pool()` is a documented escape hatch (non-negotiable N8).
+  { name = "sqlx::pool::Pool", reason = "N8, the raw-SQL escape hatch: `Db::pool()` deliberately hands the caller sqlx's pool. Documented as an escape hatch whose type is not covered by the patch-release promise." },
+  # `Db` dispatches on a runtime `Backend`, so there is no single `pool()` that
+  # can return one pool type; the escape hatch is spelled `Db::postgres_pool()`
+  # and `Db::sqlite_pool()`, each returning an `Option`. Both are the *aliases*
+  # for the `Pool` above — `PgPool = Pool<Postgres>` — so allowing them adds no
+  # type to the contract that `sqlx::pool::Pool` had not already added; they are
+  # named separately only because a type alias is a distinct rustdoc path.
+  { name = "sqlx_postgres::PgPool", reason = "N8, the raw-SQL escape hatch: `Db::postgres_pool()` deliberately hands the caller sqlx's PostgreSQL pool. It is `Pool<Postgres>`, already allowed above; sqlx's major version is part of the contract by the same decision." },
+  { name = "sqlx_sqlite::SqlitePool", reason = "N8, the raw-SQL escape hatch: `Db::sqlite_pool()` deliberately hands the caller sqlx's SQLite pool. It is `Pool<Sqlite>`, already allowed above; sqlx's major version is part of the contract by the same decision." },
+]

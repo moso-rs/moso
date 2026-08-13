@@ -1,0 +1,15 @@
+error: this length range is empty: 32 is greater than 3
+
+       help: did you mean `len = 3..=32`?
+  --> tests/ui/schema/invalid_range.rs
+   |
+   |     #[schema(len = 32..=3)]
+   |              ^^^
+
+error: this range is empty: the lower bound is above the upper bound
+
+       help: swap the two bounds
+  --> tests/ui/schema/invalid_range.rs
+   |
+   |     #[schema(range = 130..=13)]
+   |                      ^^^

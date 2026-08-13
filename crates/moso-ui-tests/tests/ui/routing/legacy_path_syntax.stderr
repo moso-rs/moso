@@ -1,0 +1,8 @@
+error: legacy path parameter syntax: write `{id}`, not `:id`
+
+       note: a route and the operation it documents spell a parameter the same way
+       help: write "/users/{id}"
+  --> tests/ui/routing/legacy_path_syntax.rs
+   |
+   |         GET "/users/:id" => show,
+   |             ^^^^^^^^^^^^

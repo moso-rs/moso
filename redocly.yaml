@@ -1,0 +1,15 @@
+# Redocly lint config for G15 (OpenAPI validity). CI runs
+# `npx @redocly/cli lint examples/*/openapi.json --config redocly.yaml`.
+
+extends:
+  - recommended
+
+rules:
+  # Moso omits `security` on operations with no auth guard, and an absent
+  # `security` on a genuinely-public operation is valid OpenAPI 3.1. The CRUD
+  # example's read endpoints (posts_list, posts_show, health_status) are public
+  # by design, so disable Redocly's opinionated rule rather than fabricate a
+  # `security: []`. Every other recommended rule - including
+  # `no-server-trailing-slash`, the regression guard for the server-url fix -
+  # stays active.
+  security-defined: off

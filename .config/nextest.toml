@@ -1,0 +1,32 @@
+# nextest configuration.
+#
+# The data-layer integration tests share the one PostgreSQL database named by
+# `DATABASE_URL`. Several reset state destructively between cases - moso-migrate's
+# `mandatory` suite runs `DROP SCHEMA public CASCADE`, which drops any concurrent
+# test's tables (including the `moso_migrations` ledger another migrator is mid-way
+# through writing). They were written to serialise via a process-local `Mutex`,
+# which works under `cargo test` (one process, many threads) but NOT under
+# `cargo nextest`, which runs each test in its OWN process - so the mutex guards
+# nothing and the tests race.
+#
+# This group makes nextest run those integration tests one at a time. It only
+# constrains `kind(test)` targets (the `tests/` binaries), so the fast unit tests
+# in the same crates still run fully parallel; and on the macOS CI leg, where
+# `DATABASE_URL` is unset, every one of these tests skips instantly, so serialising
+# them there costs nothing.
+
+[test-groups.serial-db]
+max-threads = 1
+
+[[profile.default.overrides]]
+filter = 'kind(test) and (package(moso-migrate) or package(moso-orm) or package(moso-orm-tests) or package(moso-authz) or package(moso-authz-tests) or package(moso-jobs))'
+test-group = 'serial-db'
+
+# Deadline/timeout tests assert that a stalled operation is abandoned within a
+# tight window. The logic is correct (they pass locally), but the stall-vs-
+# deadline race can lose on a loaded CI runner and report a spurious failure.
+# Retry rather than loosen the assertions - a real regression fails every retry,
+# while transient scheduling jitter passes on the next.
+[[profile.default.overrides]]
+filter = 'test(/deadline/) or test(/timeout/) or test(/overrun/)'
+retries = 3

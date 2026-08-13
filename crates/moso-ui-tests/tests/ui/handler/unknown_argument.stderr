@@ -1,0 +1,9 @@
+error: unknown `#[endpoint]` argument `tags`
+
+       help: did you mean `tag`?
+       help: valid arguments are `operation_id = "…"`, `tag = "…"`, `hidden`, `deprecated` and `errors = Type`
+       help: and the two compound ones, `response(409, "…")` and `example(request = "…", response = "…")`
+ --> tests/ui/handler/unknown_argument.rs
+  |
+  | #[endpoint(tags = "users")]
+  |            ^^^^

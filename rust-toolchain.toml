@@ -1,0 +1,18 @@
+# The toolchain every contributor and every CI job uses.
+#
+# `channel = "stable"` and not a pinned patch version on purpose. A pin such as
+# "1.97.1" forces every contributor — and every CI job that has a warm rustup
+# cache for stable and nothing else — to download a second toolchain before the
+# first build, which is a cost paid on every clone for no benefit: Moso's
+# minimum supported version is declared once, in `rust-version` in
+# `[workspace.package]`, and is *tested* by the MSRV leg of the CI matrix
+# (`.github/workflows/ci.yml`) rather than enforced by pinning here.
+#
+# The components are the ones the quality gates need
+# (docs/05-delivery/53-quality-gates.md § G1): `cargo fmt --check` and
+# `cargo clippy -D warnings` must be runnable immediately after a clone with no
+# extra `rustup component add` step, because a gate that requires a setup ritual
+# is a gate people work around.
+[toolchain]
+channel = "stable"
+components = ["rustfmt", "clippy"]

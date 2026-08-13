@@ -1,0 +1,16 @@
+# Exemptions from `xtask check-crates` (G5).
+#
+# Each entry is `<rule number>:<subject>` plus a reason. The subject is whatever
+# the rule's finding names: a crate for rules 2 and 7, a repository-relative
+# path for rules 3, 4 and 5, and `<crate>/<dependency>` for rule 6.
+#
+#   [[exempt]]
+#   subject = "6:moso-auth/openssl"
+#   reason  = "webauthn-rs-core links OpenSSL; this would be a direct declaration"
+#
+# A blank reason is refused by the parser, deliberately: an exemption nobody
+# explained is indistinguishable from a mistake six months later. Prefer fixing
+# the crate. An entry here is a decision somebody signed, and it should read like
+# one.
+#
+# The list is empty, and that is the intended steady state.

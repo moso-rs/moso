@@ -1,0 +1,35 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Rust: rustfmt indents with 4 spaces and caps lines near 100 columns.
+[*.rs]
+indent_style = space
+indent_size = 4
+max_line_length = 100
+
+[{*.yml,*.yaml,*.json,*.jsonc}]
+indent_style = space
+indent_size = 2
+
+[*.toml]
+indent_style = space
+indent_size = 2
+
+[*.sql]
+indent_style = space
+indent_size = 4
+
+[*.sh]
+indent_style = space
+indent_size = 2
+
+# Markdown uses trailing spaces for hard line breaks.
+[*.md]
+trim_trailing_whitespace = false

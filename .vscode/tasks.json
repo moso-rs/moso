@@ -1,0 +1,86 @@
+{
+  "version": "2.0.0",
+  "options": { "cwd": "${workspaceFolder}" },
+  "tasks": [
+    {
+      "label": "build",
+      "type": "shell",
+      "command": "cargo build --workspace",
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "check (all features)",
+      "type": "shell",
+      "command": "cargo check --workspace --all-features",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "lint · G1 clippy",
+      "detail": "cargo lint — clippy, all targets, all features, -D warnings",
+      "type": "shell",
+      "command": "cargo lint",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "test · G2 nextest",
+      "detail": "DB/Redis tests skip when DATABASE_URL/REDIS_URL are unset",
+      "type": "shell",
+      "command": "cargo nextest run --workspace --all-features",
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "doctests · G6",
+      "type": "shell",
+      "command": "cargo test --workspace --all-features --doc",
+      "group": "test",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "docs · G6 rustdoc",
+      "type": "shell",
+      "command": "cargo docs",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "ui · G4 trybuild corpus",
+      "type": "shell",
+      "command": "cargo ui",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "fmt",
+      "type": "shell",
+      "command": "cargo fmt --all",
+      "problemMatcher": []
+    },
+    {
+      "label": "ci · xtask structural gates",
+      "detail": "cargo xt ci — the structural gates in CI order",
+      "type": "shell",
+      "command": "cargo xt ci",
+      "group": "build",
+      "problemMatcher": ["$rustc"]
+    },
+    {
+      "label": "deny · G11",
+      "type": "shell",
+      "command": "cargo deny check",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: up",
+      "detail": "Postgres 17 on 55433, Redis 7 on 56379",
+      "type": "shell",
+      "command": "./scripts/test-db.sh up",
+      "problemMatcher": []
+    },
+    {
+      "label": "db: down",
+      "type": "shell",
+      "command": "./scripts/test-db.sh down",
+      "problemMatcher": []
+    }
+  ]
+}

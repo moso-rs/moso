@@ -1,0 +1,135 @@
+[package]
+name = "moso-core"
+description = "The Moso runtime core: App, Router, Handler, Extract, Error, dependency injection and configuration."
+categories = ["web-programming::http-server", "asynchronous"]
+keywords = ["moso", "axum", "http", "framework", "api"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["openapi", "tracing"]
+# D1: `moso-openapi` is an UNCONDITIONAL dependency, so that trait signatures are
+# never feature-dependent. This feature only controls whether the /docs,
+# /openapi.json and /openapi.yaml routes are MOUNTED.
+openapi = []
+# Which documentation-UI route `moso-core` mounts alongside `/docs`. Each
+# forwards to the matching `moso-openapi` feature; all three render the one
+# embedded, network-free UI (`moso_openapi::ui`), because vendoring three real
+# bundles would add megabytes of third-party JavaScript to every binary. `scalar`
+# is the default `/docs` UI and needs no extra route; `redoc` additionally mounts
+# `/redoc` and `swagger-ui` additionally mounts `/swagger`. All three are gated
+# on `openapi` at mount time and on `http.expose_docs` at runtime.
+scalar = ["moso-openapi/scalar"]
+redoc = ["moso-openapi/redoc"]
+swagger-ui = ["moso-openapi/swagger-ui"]
+# Whether the default middleware stack installs TraceLayer + request-id spans.
+# Internal-only: it pulls no new crate (it is all `tracing` macros), which is why
+# it can stay on by default without touching the rule-6 crate budget.
+tracing = []
+# `chrono` date/time types as `Schema` scalars, forwarded to `moso-schema`. OFF
+# by default so the default tree carries no date library — `moso-schema`
+# validates the `date`/`date-time`/`time` string formats with `time` — while a
+# database-backed build turns it on through `moso-orm`. See moso-schema's `chrono`
+# feature and docs/00-foundations/03-crate-layout.md.
+chrono = ["moso-schema/chrono"]
+# The `observability` module: `observability::init` and its `TracingGuard`,
+# backed by `tracing-subscriber`. OFF by default, and deliberately so — the
+# subscriber crate adds ~7 crates, and the default `moso` tree is already over
+# the rule-6 budget (docs/00-foundations/03-crate-layout.md). An application that
+# wants Moso to own its subscriber opts in with this feature (or with `otel`,
+# which implies it); one that installs its own subscriber in `main` needs
+# neither. See docs/04-devex/44-observability.md.
+subscriber = ["dep:tracing-subscriber"]
+# OpenTelemetry OTLP span export, OFF by default. With this on AND
+# `TracingConfig::otlp_endpoint` set, `observability::init` installs a batch OTLP
+# exporter and a W3C `traceparent` propagator, and the per-request span becomes a
+# child of an incoming remote trace. Implies `subscriber` (it extends that
+# subscriber) and `tracing` (there is nothing to export without the request
+# span). The four crates it pulls are optional and absent from every other
+# build, so they never reach the rule-6 default resolution.
+otel = [
+    "subscriber",
+    "tracing",
+    "dep:opentelemetry",
+    "dep:opentelemetry_sdk",
+    "dep:opentelemetry-otlp",
+    "dep:tracing-opentelemetry",
+]
+# Whether the default middleware stack installs response compression.
+# NOTE for implementers: `tower_http::compression` only exists when this feature
+# is on, so every use of it must sit behind `#[cfg(feature = "compression")]`.
+compression = ["tower-http/compression-br", "tower-http/compression-gzip"]
+# Whether the default middleware stack installs CORS (still inert unless configured).
+# Same note: `tower_http::cors` requires `#[cfg(feature = "cors")]`.
+cors = ["tower-http/cors"]
+# Extra axum surface, off by default to keep cold compile time down.
+multipart = ["axum/multipart"]
+ws = ["axum/ws"]
+# The FastAPI-style `dependency_overrides` table (docs/01-http/15-dependency-
+# injection.md). Its type, the provider entry that holds it and the lookup
+# `RequestCtx::depends` does to find it are all gated on
+# `cfg(any(test, feature = "test"))`, so a release build contains none of them
+# and a production application cannot have a dependency silently replaced.
+# `cfg(test)` covers moso-core's own tests; this feature is what lets a
+# DOWNSTREAM crate's test suite reach the same table through `TestApp`. It adds
+# no dependency and nothing to a default build.
+test = []
+
+[dependencies]
+moso-openapi.workspace = true
+moso-schema.workspace = true
+
+arc-swap.workspace = true
+axum.workspace = true
+bytes.workspace = true
+cookie = { workspace = true, features = ["signed", "private", "key-expansion"] }
+dotenvy.workspace = true
+form_urlencoded.workspace = true
+futures-util.workspace = true
+getrandom.workspace = true
+http.workspace = true
+http-body.workspace = true
+http-body-util.workspace = true
+humantime.workspace = true
+hyper.workspace = true
+hyper-util.workspace = true
+indexmap.workspace = true
+matchit.workspace = true
+mime.workspace = true
+percent-encoding.workspace = true
+pin-project-lite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+serde_urlencoded.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["signal"] }
+toml.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+ulid.workspace = true
+zeroize.workspace = true
+
+# Observability: the subscriber initialiser (behind `tracing`, on by default)
+# and the OTLP export stack (behind `otel`, off by default). See `[features]`.
+tracing-subscriber = { workspace = true, optional = true }
+opentelemetry = { workspace = true, optional = true }
+opentelemetry_sdk = { workspace = true, optional = true }
+opentelemetry-otlp = { workspace = true, optional = true }
+tracing-opentelemetry = { workspace = true, optional = true }
+
+[dev-dependencies]
+moso.workspace = true
+serde_json.workspace = true
+serde_urlencoded.workspace = true
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread", "macros"] }

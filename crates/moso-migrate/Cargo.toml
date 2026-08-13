@@ -1,0 +1,54 @@
+[package]
+name = "moso-migrate"
+description = "Moso's migration system: an entity-derived schema snapshot, a differ, a reviewable SQL generator and a safe runner for PostgreSQL and SQLite."
+categories = ["database", "development-tools"]
+keywords = ["moso", "migrations", "postgres", "sqlite", "schema"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = ["postgres", "sqlite"]
+# The two backends. Both on by default for the same reason `moso-orm` does it:
+# `DATABASE_URL` decides which one a process opens, at run time.
+postgres = ["moso-orm/postgres"]
+sqlite = ["moso-orm/sqlite"]
+
+[dependencies]
+# The DDL intermediate representation. Every operation this crate generates is a
+# `moso_sql::ddl::Ddl` before it is text, so the operation-coverage table in
+# `docs/02-data/23-migrations.md` is expressed in types rather than in strings.
+moso-sql.workspace = true
+# `EntityDescriptor` is the input to the whole system (non-negotiable N6), and
+# `Backend` is how a caller says which database it is talking about.
+moso-orm.workspace = true
+
+# The runner talks to the database directly rather than through `moso_orm::Db`.
+# Three reasons, all structural: a migration must hold ONE connection for the
+# advisory lock (a pool hands out a different connection per statement), some
+# statements must run outside a transaction, and `SET lock_timeout` is
+# session state that a pooled connection would leak to the next borrower.
+sqlx.workspace = true
+
+chrono.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]

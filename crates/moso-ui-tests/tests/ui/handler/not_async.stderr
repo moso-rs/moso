@@ -1,0 +1,8 @@
+error: handlers must be `async fn`
+
+       note: the extraction glue awaits every parameter, so the handler itself must be awaitable
+       help: write `async fn list(…)`
+ --> tests/ui/handler/not_async.rs
+  |
+  | fn list() -> Result<NoContent> {
+  | ^^

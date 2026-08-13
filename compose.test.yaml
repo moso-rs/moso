@@ -1,0 +1,97 @@
+# Test-only services for the moso workspace.
+#
+# This file provisions the stores the moso-orm / moso-migrate / moso-jobs /
+# moso-kv / moso-auth integration suites run against. It is deliberately
+# separate from any application compose file: it uses non-default host ports
+# (55433, 56379) so it can never collide with a Postgres already running on 5432
+# or a Redis on 6379.
+#
+#   docker compose -f compose.test.yaml up -d --wait
+#   export DATABASE_URL=postgres://moso:moso@localhost:55433/moso_test
+#   export REDIS_URL=redis://localhost:56379
+#   cargo test --workspace
+#   docker compose -f compose.test.yaml down -v
+#
+# Both services matter. The Postgres and Redis suites *skip silently* when their
+# URL is unset, and a skipped test is still a passing test — so a file that
+# provisions only Postgres lets a contributor run the documented command, watch
+# the Redis legs never execute, and still be told everything passed. That is the
+# failure mode this service list exists to prevent.
+#
+# Prefer ./scripts/test-db.sh (up|down|reset|psql|env), which wraps this file and
+# falls back to plain `docker run` when the compose plugin is unavailable.
+
+name: moso-test
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: moso-test-pg
+    restart: unless-stopped
+    ports:
+      # host:container - 55433 is intentional, do not change without updating
+      # DATABASE_URL in scripts/test-db.sh, CI and the docs.
+      - "55433:5432"
+    environment:
+      POSTGRES_USER: moso
+      POSTGRES_PASSWORD: moso
+      POSTGRES_DB: moso_test
+      # NOTE: initdb locale/encoding are left at the image defaults on purpose.
+      # Overriding them here but not in the `docker run` fallback in
+      # scripts/test-db.sh would make text ORDER BY differ between CI and a
+      # developer machine, silently breaking query snapshot tests.
+    command:
+      # Test databases are disposable: trade durability for speed. Never use
+      # these settings for anything that holds real data.
+      - "postgres"
+      - "-c"
+      - "fsync=off"
+      - "-c"
+      - "synchronous_commit=off"
+      - "-c"
+      - "full_page_writes=off"
+      - "-c"
+      - "max_connections=200"
+    tmpfs:
+      # Storing the cluster in RAM keeps `CREATE DATABASE ... TEMPLATE` (used by
+      # the ORM harness to give each test an isolated database) fast, and makes
+      # teardown total: nothing survives `down`.
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moso -d moso_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  redis:
+    image: redis:7-alpine
+    container_name: moso-test-redis
+    restart: unless-stopped
+    ports:
+      # host:container - 56379 is intentional, do not change without updating
+      # REDIS_URL in scripts/test-db.sh, CI and the docs.
+      - "56379:6379"
+    command:
+      # Test data is disposable, so persistence is off entirely: no RDB
+      # snapshots, no AOF. `--save ""` clears the image's default snapshot
+      # schedule, which would otherwise fork the process mid-suite.
+      - "redis-server"
+      - "--save"
+      - ""
+      - "--appendonly"
+      - "no"
+      # The conformance suite writes keys with short TTLs and never prunes; a
+      # bounded maxmemory with an explicit policy keeps a long run from growing
+      # without limit. `allkeys-lru` rather than `noeviction` because a test that
+      # fails with OOM tells you nothing about the code under test.
+      - "--maxmemory"
+      - "256mb"
+      - "--maxmemory-policy"
+      - "allkeys-lru"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 2s

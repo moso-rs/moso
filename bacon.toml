@@ -1,0 +1,96 @@
+# bacon — the background code checker (https://dystroy.org/bacon).
+#
+# The jobs below mirror Moso's quality gates one-for-one, so a green bacon means
+# the same thing a green CI does. Where a gate is a `.cargo/config.toml` alias,
+# the job reproduces the alias *exactly* (all-features, all-targets, `-D
+# warnings`); retyping a shorter form here would give a loop that is greener than
+# CI, which is the failure this file exists to avoid.
+#
+#   brew install bacon        # or: cargo install --locked bacon
+#   bacon                     # runs `default_job` and re-runs it on every save
+#   bacon clippy              # run a named job; keybindings below switch live
+#
+# Database/Redis tests skip (never fail) when DATABASE_URL / REDIS_URL are unset,
+# so the `test` job is honest with no server running — it just runs fewer tests.
+
+default_job = "check"
+
+# ── G-adjacent: fast inner loop ─────────────────────────────────────────────
+
+# The default. `--all-features` because Moso's behaviour is feature-gated (orm,
+# auth, otel, passkeys, …) and a default-feature check misses most of the tree.
+[jobs.check]
+command = ["cargo", "check", "--workspace", "--all-features"]
+need_stdout = false
+
+# Just the crate under the cursor's package — the fastest possible feedback.
+[jobs.check-fast]
+command = ["cargo", "check", "--all-features"]
+need_stdout = false
+
+# ── G1 — clippy, the merge-gating lint (the `cargo lint` alias, verbatim) ────
+[jobs.clippy]
+command = [
+    "cargo", "clippy",
+    "--workspace", "--all-targets", "--all-features",
+    "--", "-D", "warnings",
+]
+need_stdout = false
+
+# ── G2 — the test suite (nextest, as CI runs it) ────────────────────────────
+[jobs.test]
+command = [
+    "cargo", "nextest", "run",
+    "--workspace", "--all-features",
+    "--hide-progress-bar", "--failure-output", "final",
+]
+need_stdout = true
+
+# G6's doctest half — nextest cannot run doctests, so this is separate.
+[jobs.doctest]
+command = ["cargo", "test", "--workspace", "--all-features", "--doc"]
+need_stdout = true
+
+# ── G6 — rustdoc must build clean (the `cargo docs` alias) ──────────────────
+[jobs.doc]
+command = ["cargo", "doc", "--workspace", "--no-deps", "--all-features"]
+need_stdout = false
+
+[jobs.doc-open]
+command = ["cargo", "doc", "--workspace", "--no-deps", "--all-features", "--open"]
+need_stdout = false
+on_success = "back"
+
+# ── G4 — the trybuild diagnostics corpus (the `cargo ui` alias) ─────────────
+[jobs.ui]
+command = ["cargo", "test", "-p", "moso-ui-tests"]
+need_stdout = true
+
+# ── G5 / G7–G10 — the structural xtask gates ────────────────────────────────
+[jobs.crates]
+command = ["cargo", "run", "--quiet", "--package", "xtask", "--", "check-crates"]
+need_stdout = true
+
+[jobs.diagnostics]
+command = ["cargo", "run", "--quiet", "--package", "xtask", "--", "check-diagnostics"]
+need_stdout = true
+
+[jobs.sealed]
+command = ["cargo", "run", "--quiet", "--package", "xtask", "--", "check-sealed"]
+need_stdout = true
+
+# Run one Rust test by name from inside bacon: hit `!` then type the pattern.
+[jobs.test-one]
+command = ["cargo", "nextest", "run", "--workspace", "--all-features"]
+need_stdout = true
+
+# ── Keybindings: switch job live without leaving the loop ────────────────────
+[keybindings]
+c = "job:check"
+shift-c = "job:clippy"
+t = "job:test"
+shift-t = "job:doctest"
+d = "job:doc"
+shift-d = "job:doc-open"
+u = "job:ui"
+shift-x = "job:crates"

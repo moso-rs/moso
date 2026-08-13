@@ -1,0 +1,9 @@
+# Stable-only rustfmt options. Nightly-gated settings (imports_granularity,
+# group_imports, wrap_comments, ...) are deliberately absent: CI formats with
+# stable Rust, so a nightly-only key would silently do nothing.
+edition = "2024"
+style_edition = "2024"
+max_width = 100
+newline_style = "Unix"
+use_field_init_shorthand = true
+use_try_shorthand = true

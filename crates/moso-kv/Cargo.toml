@@ -1,0 +1,63 @@
+[package]
+name = "moso-kv"
+description = "Moso's key-value and cache layer: typed namespaces, single-flight caching, distributed locks and rate limiting over memory, Redis or PostgreSQL."
+categories = ["caching", "database", "web-programming"]
+keywords = ["moso", "cache", "redis", "kv", "rate-limit"]
+readme = "README.md"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+# `memory` is on by default because `docs/02-data/25-kv-cache.md` makes it a
+# Loop-1 requirement: a test suite that needs a running Redis is a test suite
+# people stop running. The other two backends are opt-in, and each one is the
+# only thing that pulls its driver in.
+default = ["memory"]
+memory = ["dep:moka"]
+redis = ["dep:fred"]
+pg-kv = ["dep:sqlx"]
+
+[dependencies]
+# `Guard` (the rate limiter), `HealthCheck` (the readiness probe), `Dependency`
+# (`Kv` in a handler) and `Error` (a `moso_kv::Error` becomes an HTTP problem).
+moso-core.workspace = true
+# `Id<E>`, `Email` and `Slug` are key parts a user writes in a `namespace!`.
+moso-schema.workspace = true
+# `Guard::describe` contributes the 429 to the operation.
+moso-openapi.workspace = true
+
+bytes.workspace = true
+futures-util.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }
+tracing.workspace = true
+uuid.workspace = true
+http.workspace = true
+humantime.workspace = true
+
+# ── backends ────────────────────────────────────────────────────────────────
+moka = { workspace = true, optional = true }
+fred = { workspace = true, optional = true }
+# The PostgreSQL backend talks to sqlx directly rather than through `moso-orm`:
+# `xtask/allow/dep-edges.toml` records the reason — a stateless service should
+# be able to have a cache without an ORM.
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "test-util"] }
+serde_json.workspace = true
+http.workspace = true
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
