@@ -1,8 +1,35 @@
 # RFC-0001 - Four dependency-budget cuts behind off-by-default features
 
-Status: Draft
+Status: Partially implemented
 Date: 2026-08-19
 Author: Alessandro Zucchiatti
+
+## Outcome (2026-08-19)
+
+**B1 (`config-file`) and B2 (`private-cookies`) are implemented** - the two
+default-budget cuts. `toml` and the AES-GCM stack are now behind off-by-default
+`moso-core` features (forwarded by the facade); `moso new` turns `config-file`
+on. Default-feature builds and tests are green with both features off and on.
+
+**B3 (`moka`) and B4 (`chrono-tz`) were attempted and reverted.** They are not
+the mechanical Cargo.toml cuts this RFC assumed:
+
+- **B3** - `MemoryQueue` is the moso-jobs **test backend**; every use is under
+  `#[cfg(test)]` and its export is already `#[cfg(feature = "jobs-memory")]`.
+  Dropping `jobs-memory` from the default therefore gates a large part of the
+  moso-jobs test suite out of the default-feature run - a real coverage
+  regression, not a free cut.
+- **B4** - `Timezone` wraps `chrono_tz::Tz` and is used *inside* the scheduler.
+  A `type Zone` alias makes the library UTC-only cleanly, but the scheduler's
+  non-UTC unit tests then need the same gating.
+
+Both are **full-only** cuts (0 default reduction) that, per the bottom line
+below, do not reach the budget even together. Gating a battery's own test
+coverage to shave crates off a build that is still over budget is the wrong
+trade. They are **deferred** pending a design that decouples the in-memory
+broker and the scheduler's timezone from those features - or a decision to spend
+the crates. `A4` (sqlx backend selectability, additive) and `A5` (getrandom,
+already landed) remain the only genuinely-free items and remove no crates.
 
 ## Context
 
