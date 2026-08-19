@@ -2240,7 +2240,7 @@ fn mount_docs(mut outer: axum::Router<()>, state: &Arc<AppState>) -> axum::Route
     }
 
     if is_mountable(&http.docs_path) {
-        outer = mount_ui(outer, &http.docs_path, docs_ui(state));
+        outer = mount_primary_docs(outer, &http.docs_path, state);
 
         #[cfg(feature = "redoc")]
         {
@@ -2255,25 +2255,162 @@ fn mount_docs(mut outer: axum::Router<()>, state: &Arc<AppState>) -> axum::Route
     outer
 }
 
-/// Build the embedded UI for this application, pointed at its spec URL.
+/// Mount the primary documentation route (`/docs`).
 ///
-/// All three cargo features render this one UI; the feature only selects which
-/// route it answers on. See [`moso_openapi::ui`] for why Moso ships one renderer
-/// it controls rather than vendoring three third-party bundles.
+/// By default this serves the real, self-hosted Swagger UI
+/// ([`moso_openapi::swagger_ui`]) plus its same-origin assets, so the page is the
+/// familiar tool users already know. The `lean-docs` feature swaps in Moso's own
+/// compact renderer for builds that prefer the smaller binary. See ADR-0019.
+#[cfg(all(feature = "openapi", not(feature = "lean-docs")))]
+fn mount_primary_docs(
+    mut outer: axum::Router<()>,
+    path: &str,
+    state: &Arc<AppState>,
+) -> axum::Router<()> {
+    let spec_url = state.http().openapi_path.clone();
+    let title = docs_title(state);
+    let base = path.trim_end_matches('/').to_owned();
+
+    let render = {
+        let spec_url = spec_url.clone();
+        let title = title.clone();
+        let base = base.clone();
+        move || swagger_page(spec_url.clone(), title.clone(), base.clone())
+    };
+    outer = outer.route(path, axum::routing::get(render));
+
+    // Each vendored asset on its own same-origin sub-path, so the page fetches
+    // no CDN. The bytes live in `moso-openapi`; this only wires the routes.
+    for asset in moso_openapi::swagger_ui::ASSETS {
+        let asset_path = format!("{base}/{}", asset.file_name);
+        if is_mountable(&asset_path) {
+            outer = outer.route(
+                &asset_path,
+                axum::routing::get(move || serve_swagger_asset(asset)),
+            );
+        }
+    }
+    outer
+}
+
+/// Mount the primary documentation route (`/docs`) — the `lean-docs` build.
+///
+/// Serves Moso's own compact, network-free renderer instead of the vendored
+/// Swagger UI bundle, keeping the binary small. See ADR-0019.
+#[cfg(all(feature = "openapi", feature = "lean-docs"))]
+fn mount_primary_docs(
+    outer: axum::Router<()>,
+    path: &str,
+    state: &Arc<AppState>,
+) -> axum::Router<()> {
+    mount_ui(outer, path, docs_ui(state))
+}
+
+/// The document's title, or the default when the application set none.
 #[cfg(feature = "openapi")]
-fn docs_ui(state: &Arc<AppState>) -> moso_openapi::ui::DocsUi {
-    let title = if state.document().info.title.is_empty() {
+fn docs_title(state: &Arc<AppState>) -> String {
+    let title = &state.document().info.title;
+    if title.is_empty() {
         moso_openapi::ui::DEFAULT_TITLE.to_owned()
     } else {
-        state.document().info.title.clone()
+        title.clone()
+    }
+}
+
+/// `GET /docs` — the Swagger UI page, with a fresh CSP nonce on its bootstrap.
+#[cfg(all(feature = "openapi", not(feature = "lean-docs")))]
+async fn swagger_page(spec_url: String, title: String, base: String) -> crate::Response {
+    use axum::response::IntoResponse as _;
+
+    let nonce = docs_nonce();
+    let ui = moso_openapi::swagger_ui::SwaggerUi::new()
+        .spec_url(spec_url)
+        .base_path(base)
+        .title(title);
+    let ui = match &nonce {
+        Some(nonce) => ui.nonce(nonce.clone()),
+        None => ui,
     };
+
+    let mut response = ui.render().into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        http::header::CONTENT_TYPE,
+        http::HeaderValue::from_static("text/html; charset=utf-8"),
+    );
+    headers.insert(
+        http::header::CACHE_CONTROL,
+        http::HeaderValue::from_static("no-store"),
+    );
+    if let Some(nonce) = &nonce
+        && let Ok(value) = http::HeaderValue::from_str(&swagger_csp(nonce))
+    {
+        headers.insert(http::header::CONTENT_SECURITY_POLICY, value);
+    }
+    response
+}
+
+/// `GET /docs/<asset>` — one vendored, cacheable Swagger UI asset.
+#[cfg(all(feature = "openapi", not(feature = "lean-docs")))]
+async fn serve_swagger_asset(
+    asset: &'static moso_openapi::swagger_ui::SwaggerAsset,
+) -> crate::Response {
+    use axum::response::IntoResponse as _;
+
+    let mut response = asset.bytes.into_response();
+    let headers = response.headers_mut();
+    headers.insert(
+        http::header::CONTENT_TYPE,
+        http::HeaderValue::from_static(asset.content_type),
+    );
+    // The assets are versioned with the crate, so a browser may cache them and
+    // skip re-fetching ~1.4 MB on every page load.
+    headers.insert(
+        http::header::CACHE_CONTROL,
+        http::HeaderValue::from_static("public, max-age=3600"),
+    );
+    response
+}
+
+/// The Content-Security-Policy the Swagger UI page carries.
+///
+/// Looser than the compact renderer's policy in one place: Swagger UI sets
+/// element styles from JavaScript at runtime, which `style-src` can only admit
+/// with `'unsafe-inline'` — a nonce cannot cover styles a script injects. The
+/// bundle itself loads from `'self'` and the one inline bootstrap is admitted by
+/// its `nonce`. The documentation page is never served in production
+/// (`http.expose_docs`), so this relaxation is confined to `dev` and `test`.
+/// `connect-src *` matches the compact policy: "Try it" fetches arbitrary
+/// documented origins.
+#[cfg(all(feature = "openapi", not(feature = "lean-docs")))]
+fn swagger_csp(nonce: &str) -> String {
+    format!(
+        "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; \
+         img-src 'self' data:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; \
+         script-src 'self' 'nonce-{nonce}'; connect-src *"
+    )
+}
+
+/// Build the compact embedded UI for this application, pointed at its spec URL.
+///
+/// This is the renderer the `lean-docs`, `redoc` and `swagger-ui` routes use.
+/// See [`moso_openapi::ui`] for the network-free renderer Moso controls, and
+/// ADR-0019 for why the default `/docs` is now the vendored Swagger UI instead.
+#[cfg(all(
+    feature = "openapi",
+    any(feature = "lean-docs", feature = "redoc", feature = "swagger-ui")
+))]
+fn docs_ui(state: &Arc<AppState>) -> moso_openapi::ui::DocsUi {
     moso_openapi::ui::DocsUi::new()
         .spec_url(state.http().openapi_path.clone())
-        .title(title)
+        .title(docs_title(state))
 }
 
 /// Mount one documentation-UI route that renders `ui` with a per-response nonce.
-#[cfg(feature = "openapi")]
+#[cfg(all(
+    feature = "openapi",
+    any(feature = "lean-docs", feature = "redoc", feature = "swagger-ui")
+))]
 fn mount_ui(outer: axum::Router<()>, path: &str, ui: moso_openapi::ui::DocsUi) -> axum::Router<()> {
     outer.route(path, axum::routing::get(move || docs_page(ui.clone())))
 }
@@ -2397,7 +2534,10 @@ fn serve_document(
 /// on the response, rather than inherited. The page is off in the production
 /// profile (`http.expose_docs`), so this policy is only ever served in `dev` and
 /// `test`.
-#[cfg(feature = "openapi")]
+#[cfg(all(
+    feature = "openapi",
+    any(feature = "lean-docs", feature = "redoc", feature = "swagger-ui")
+))]
 async fn docs_page(ui: moso_openapi::ui::DocsUi) -> crate::Response {
     use axum::response::IntoResponse as _;
 
@@ -2464,7 +2604,10 @@ fn docs_nonce() -> Option<String> {
 /// origins, which are arbitrary and routinely cross-origin, so narrowing it to
 /// `'self'` would break the feature. Since the page is never served in
 /// production, that breadth is confined to `dev` and `test`.
-#[cfg(feature = "openapi")]
+#[cfg(all(
+    feature = "openapi",
+    any(feature = "lean-docs", feature = "redoc", feature = "swagger-ui")
+))]
 fn docs_csp(nonce: &str) -> String {
     format!(
         "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; \
@@ -3098,7 +3241,9 @@ mod tests {
         assert_eq!(response.status(), http::StatusCode::NOT_MODIFIED);
     }
 
-    #[cfg(feature = "openapi")]
+    // The compact renderer (`lean-docs`) keeps the strict, nonce-only CSP; the
+    // default Swagger-UI page relaxes `style-src` and is covered separately below.
+    #[cfg(all(feature = "openapi", feature = "lean-docs"))]
     #[tokio::test]
     async fn the_docs_page_carries_a_csp_nonce_and_forbids_unsafe_inline() {
         let app = builder().build().expect("nothing to fail");
@@ -3128,6 +3273,96 @@ mod tests {
         );
 
         // Every response gets a fresh nonce, so the page is never reusable.
+        let (_, second, _) = get(&app, "/docs").await;
+        assert_ne!(
+            csp,
+            second[http::header::CONTENT_SECURITY_POLICY]
+                .to_str()
+                .expect("ascii"),
+            "each response gets a fresh nonce"
+        );
+    }
+
+    #[cfg(all(feature = "openapi", not(feature = "lean-docs")))]
+    #[tokio::test]
+    async fn the_docs_page_is_the_real_swagger_ui_and_serves_its_assets() {
+        let app = builder().build().expect("nothing to fail");
+
+        let (status, headers, body) = get(&app, "/docs").await;
+        assert_eq!(status, http::StatusCode::OK);
+        assert!(
+            headers[http::header::CONTENT_TYPE]
+                .to_str()
+                .expect("ascii")
+                .starts_with("text/html")
+        );
+        assert!(body.contains("SwaggerUIBundle"), "{body}");
+        assert!(body.contains("/docs/swagger-ui-bundle.js"), "{body}");
+        // Self-hosted, not a CDN — the whole point of vendoring the bundle.
+        assert!(
+            !body.contains("https://"),
+            "the page must be self-hosted: {body}"
+        );
+
+        // The JS bundle is ~1.4 MB — larger than `get`'s body cap — so check its
+        // route from the response head without draining the body.
+        let request = http::Request::builder()
+            .uri("/docs/swagger-ui-bundle.js")
+            .body(axum::body::Body::empty())
+            .expect("a well-formed request");
+        let response = app
+            .service
+            .clone()
+            .oneshot(request)
+            .await
+            .expect("the router is infallible");
+        assert_eq!(response.status(), http::StatusCode::OK);
+        assert!(
+            response.headers()[http::header::CONTENT_TYPE]
+                .to_str()
+                .expect("ascii")
+                .contains("javascript")
+        );
+
+        // The stylesheet is small enough to fetch whole.
+        let (status, headers, _) = get(&app, "/docs/swagger-ui.css").await;
+        assert_eq!(status, http::StatusCode::OK);
+        assert!(
+            headers[http::header::CONTENT_TYPE]
+                .to_str()
+                .expect("ascii")
+                .contains("css")
+        );
+    }
+
+    #[cfg(all(feature = "openapi", not(feature = "lean-docs")))]
+    #[tokio::test]
+    async fn the_swagger_page_carries_a_fresh_csp_nonce() {
+        let app = builder().build().expect("nothing to fail");
+        let (status, headers, body) = get(&app, "/docs").await;
+        assert_eq!(status, http::StatusCode::OK);
+
+        let csp = headers[http::header::CONTENT_SECURITY_POLICY]
+            .to_str()
+            .expect("ascii");
+        // The bundle loads from 'self'; the inline bootstrap is admitted by nonce.
+        assert!(csp.contains("script-src 'self' 'nonce-"), "{csp}");
+        // Swagger UI injects element styles at runtime, so style-src must allow it.
+        assert!(csp.contains("style-src 'self' 'unsafe-inline'"), "{csp}");
+
+        let nonce = csp
+            .split("script-src 'self' 'nonce-")
+            .nth(1)
+            .expect("a script-src nonce")
+            .split('\'')
+            .next()
+            .expect("a closing quote");
+        assert!(!nonce.is_empty(), "{csp}");
+        assert!(
+            body.contains(&format!("nonce=\"{nonce}\"")),
+            "the inline bootstrap must carry the policy's nonce"
+        );
+
         let (_, second, _) = get(&app, "/docs").await;
         assert_ne!(
             csp,

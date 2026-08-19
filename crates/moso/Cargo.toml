@@ -22,14 +22,17 @@ default = ["http", "openapi", "tracing"]
 # documented feature topology in 00-foundations/02-architecture.md.
 http = []
 openapi = ["moso-core/openapi", "dep:moso-openapi"]
-# Which documentation-UI route is mounted next to `/docs`. `scalar` is the
-# default UI; `redoc` additionally serves `/redoc` and `swagger-ui` additionally
-# serves `/swagger`. All three render the one embedded, network-free renderer —
-# the feature only selects the route — and all three obey `http.expose_docs`, so
-# none of them is served in the production profile.
+# `/docs` serves the real, self-hosted Swagger UI by default (ADR-0019). `redoc`
+# and `swagger-ui` add Moso's own compact renderer at `/redoc` and `/swagger`;
+# `scalar` is a compatibility no-op. All obey `http.expose_docs`, so none is
+# served in the production profile.
 scalar = ["moso-core/scalar"]
 redoc = ["moso-core/redoc"]
 swagger-ui = ["moso-core/swagger-ui"]
+# Swap the default `/docs` back to Moso's compact, network-free renderer — a
+# smaller binary with no third-party JS, at the cost of the familiar Swagger UI
+# (ADR-0019). OFF by default.
+lean-docs = ["moso-core/lean-docs"]
 tracing = ["moso-core/tracing"]
 # `chrono` date/time types (`DateTime<Utc>`, `NaiveDate`, …) as `Schema` scalars,
 # OFF by default. The base tree validates the `date`/`date-time`/`time` string
