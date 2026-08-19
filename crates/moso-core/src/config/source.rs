@@ -40,7 +40,7 @@ use crate::error::{Error, Result};
 /// source — Vault, AWS Parameter Store, a database table — a first-class
 /// citizen rather than a fork.
 ///
-/// The built-in sources are [`EnvSource`], [`DotEnvSource`], [`TomlSource`],
+/// The built-in sources are [`EnvSource`], [`DotEnvSource`], `TomlSource`,
 /// [`DefaultsSource`] and [`MapSource`]; implement this to add another.
 ///
 /// ```

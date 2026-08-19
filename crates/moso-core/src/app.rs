@@ -2187,11 +2187,11 @@ fn is_mountable(path: &str) -> bool {
 }
 
 /// The route the ReDoc cargo feature adds next to `/docs`.
-#[cfg(feature = "redoc")]
+#[cfg(all(feature = "redoc", feature = "openapi"))]
 const REDOC_PATH: &str = "/redoc";
 
 /// The route the Swagger-UI cargo feature adds next to `/docs`.
-#[cfg(feature = "swagger-ui")]
+#[cfg(all(feature = "swagger-ui", feature = "openapi"))]
 const SWAGGER_PATH: &str = "/swagger";
 
 /// The `/openapi.yaml` path derived from the configured JSON path.

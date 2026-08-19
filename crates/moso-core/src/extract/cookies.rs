@@ -67,16 +67,16 @@
 //! # Signed and private cookies
 //!
 //! [`Cookies::signed`] gives a view whose values are authenticated with the
-//! application's `secret_key`; [`Cookies::private`] gives one whose values are
+//! application's `secret_key`; `Cookies::private` gives one whose values are
 //! additionally encrypted. Reading a tampered cookie yields `None` rather than
 //! an error, which is the behaviour that keeps a rotated key from turning into
 //! a wall of 500s.
 //!
 //! Both require a [`CookieKey`] provider, registered at boot from
 //! `config.secret_key`. Without one, [`Cookies::signed`] and
-//! [`Cookies::private`] return a view that **fails closed**: reads yield `None`
+//! `Cookies::private` return a view that **fails closed**: reads yield `None`
 //! and writes are dropped, each with an `ERROR` log naming the missing
-//! provider. [`Cookies::try_signed`] and [`Cookies::try_private`] are the same
+//! provider. [`Cookies::try_signed`] and `Cookies::try_private` are the same
 //! views with the failure surfaced as a `Result`, for code that would rather
 //! handle it than log it. Neither is meant to be reached: the intended failure
 //! mode is a boot error, and the runtime behaviour exists so a missing
@@ -264,7 +264,7 @@ impl Default for CookieDefaults {
 ///
 /// Attributes the caller does not set are filled in from [`CookieDefaults`].
 ///
-/// [`Cookies::signed`] and [`Cookies::private`] give tamper-evident and encrypted
+/// [`Cookies::signed`] and `Cookies::private` give tamper-evident and encrypted
 /// jars; both need a `CookieKey` provider, and say so if one is missing.
 #[derive(Debug, Clone)]
 pub struct Cookies {
@@ -278,7 +278,7 @@ impl Cookies {
     /// extractor from outside a request.
     ///
     /// The resulting `Cookies` has no signing key, so [`Cookies::signed`] and
-    /// [`Cookies::private`] fail closed, and it uses
+    /// `Cookies::private` fail closed, and it uses
     /// [`CookieDefaults::SECURE`] — there is no application to ask which
     /// profile is running, and the strict answer is the one that cannot leak.
     /// Use [`Cookies::with_defaults`] to say otherwise.
@@ -396,7 +396,7 @@ impl Cookies {
         self.checked_view("signed").map(SignedCookies)
     }
 
-    /// [`Cookies::private`] with the missing-key case as a `Result`.
+    /// `Cookies::private` with the missing-key case as a `Result`.
     ///
     /// # Errors
     /// 500 when no [`CookieKey`] provider is registered.

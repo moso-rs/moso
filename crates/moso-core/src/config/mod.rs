@@ -74,8 +74,8 @@
 //! | 2 | command-line flags | [`CliSource`] |
 //! | 3 | environment variables | [`EnvSource`] |
 //! | 4 | `.env`, in `dev` and `test` only | [`DotEnvSource`] |
-//! | 5 | `config/{profile}.toml` | [`TomlSource`] |
-//! | 6 | `config/default.toml` | [`TomlSource`] |
+//! | 5 | `config/{profile}.toml` | `TomlSource` |
+//! | 6 | `config/default.toml` | `TomlSource` |
 //! | 7 | `#[config(profile(..))]` | [`FieldSpec::profile_default`] |
 //! | 8 | `#[config(default = ..)]` | [`FieldSpec::default_value`] |
 //!
