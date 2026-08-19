@@ -33,6 +33,13 @@ swagger-ui = ["moso-core/swagger-ui"]
 # smaller binary with no third-party JS, at the cost of the familiar Swagger UI
 # (ADR-0019). OFF by default.
 lean-docs = ["moso-core/lean-docs"]
+# The TOML config-file layers in `moso-core`, OFF by default (RFC-0001). `moso
+# new` turns it on so generated apps read `config/*.toml`; a service configured
+# only by env/CLI can leave it off and drop `toml` (6 crates) from its tree.
+config-file = ["moso-core/config-file"]
+# Encrypted (`private`) cookies, OFF by default (RFC-0001). Signed cookies are
+# always available; turn this on for `Cookies::private`. Pulls the AES-GCM stack.
+private-cookies = ["moso-core/private-cookies"]
 tracing = ["moso-core/tracing"]
 # `chrono` date/time types (`DateTime<Utc>`, `NaiveDate`, …) as `Schema` scalars,
 # OFF by default. The base tree validates the `date`/`date-time`/`time` string

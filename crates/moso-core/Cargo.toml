@@ -34,6 +34,16 @@ swagger-ui = ["moso-openapi/swagger-ui"]
 # of the familiar Swagger UI (ADR-0019). OFF by default. Implies `openapi`, since
 # there is nothing to render without it.
 lean-docs = ["openapi"]
+# The TOML config-file layers (`config/{profile}.toml`, `config/default.toml`)
+# and `TomlSource`. OFF by default (RFC-0001): the env, CLI-arg, `.env` and
+# `#[config(default)]` layers configure an application without it, and dropping
+# `toml` removes 6 crates from the default tree. `moso new` turns it on.
+config-file = ["dep:toml"]
+# Encrypted (`private`) cookies: `Cookies::private`, `try_private` and the
+# `PrivateCookies` view. OFF by default (RFC-0001) — the documented cookie
+# default is SIGNED (HMAC-SHA256 + HKDF), always on; encrypted cookies are extra
+# and pull the ~10-crate AES-GCM stack. Turn on to use `.private()`.
+private-cookies = ["cookie/private"]
 # Whether the default middleware stack installs TraceLayer + request-id spans.
 # Internal-only: it pulls no new crate (it is all `tracing` macros), which is why
 # it can stay on by default without touching the rule-6 crate budget.
@@ -94,7 +104,7 @@ moso-schema.workspace = true
 arc-swap.workspace = true
 axum.workspace = true
 bytes.workspace = true
-cookie = { workspace = true, features = ["signed", "private", "key-expansion"] }
+cookie = { workspace = true, features = ["signed", "key-expansion"] }
 dotenvy.workspace = true
 form_urlencoded.workspace = true
 futures-util.workspace = true
@@ -116,7 +126,7 @@ serde_path_to_error.workspace = true
 serde_urlencoded.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["signal"] }
-toml.workspace = true
+toml = { workspace = true, optional = true }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true

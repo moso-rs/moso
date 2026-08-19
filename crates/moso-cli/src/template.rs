@@ -260,9 +260,9 @@ impl Vars {
             return published_dependency(self.with_auth);
         };
         if self.with_auth {
-            format!("moso = {{ path = \"{path}\", features = [\"auth\"] }}")
+            format!("moso = {{ path = \"{path}\", features = [\"auth\", \"config-file\"] }}")
         } else {
-            format!("moso = {{ path = \"{path}\" }}")
+            format!("moso = {{ path = \"{path}\", features = [\"config-file\"] }}")
         }
     }
 
@@ -544,10 +544,13 @@ fn published_dependency(with_auth: bool) -> String {
     let minor = minor_version();
     if with_auth {
         // `auth` is off by default and implies `orm`, because a user lives in a
-        // table. Naming it is what makes `moso::auth` exist.
-        format!("moso = {{ version = \"{minor}\", features = [\"auth\"] }}")
+        // table. Naming it is what makes `moso::auth` exist. `config-file` gives
+        // the generated app the `config/*.toml` layers its `lib.rs` documents
+        // (RFC-0001 makes it off-by-default on the facade to keep `cargo add
+        // moso` lean).
+        format!("moso = {{ version = \"{minor}\", features = [\"auth\", \"config-file\"] }}")
     } else {
-        format!("moso = \"{minor}\"")
+        format!("moso = {{ version = \"{minor}\", features = [\"config-file\"] }}")
     }
 }
 
@@ -771,7 +774,9 @@ mod tests {
         let vars = vars().with_moso_path(Path::new("../moso/crates/moso"));
         let manifest = vars.render(FILES[0].contents);
         assert!(
-            manifest.contains("moso = { path = \"../moso/crates/moso\" }"),
+            manifest.contains(
+                "moso = { path = \"../moso/crates/moso\", features = [\"config-file\"] }"
+            ),
             "{manifest}"
         );
         assert!(!manifest.contains("moso = \"0."), "{manifest}");
@@ -786,9 +791,10 @@ mod tests {
             .join(".");
         assert_eq!(
             published_dependency(false),
-            format!("moso = \"{expected}\"")
+            format!("moso = {{ version = \"{expected}\", features = [\"config-file\"] }}")
         );
-        assert!(published_dependency(true).contains("features = [\"auth\"]"));
+        assert!(published_dependency(true).contains("\"auth\""));
+        assert!(published_dependency(true).contains("\"config-file\""));
     }
 
     #[test]
@@ -806,7 +812,7 @@ mod tests {
             let manifest = vars.render(FILES[0].contents);
             assert!(
                 manifest
-                    .contains("moso = { path = \"../moso/crates/moso\", features = [\"auth\"] }"),
+                    .contains("moso = { path = \"../moso/crates/moso\", features = [\"auth\", \"config-file\"] }"),
                 "{manifest}"
             );
             // The kv crate is a sibling of `crates/moso`, not a published one.

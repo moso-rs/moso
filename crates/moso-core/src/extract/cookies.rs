@@ -377,6 +377,10 @@ impl Cookies {
     }
 
     /// A view whose values are encrypted and authenticated.
+    ///
+    /// Available only with the off-by-default `private-cookies` feature
+    /// (RFC-0001); signed cookies ([`Cookies::signed`]) are always available.
+    #[cfg(feature = "private-cookies")]
     pub fn private(&self) -> PrivateCookies {
         if self.key.is_none() {
             report_missing_key("private");
@@ -396,6 +400,7 @@ impl Cookies {
     ///
     /// # Errors
     /// 500 when no [`CookieKey`] provider is registered.
+    #[cfg(feature = "private-cookies")]
     pub fn try_private(&self) -> Result<PrivateCookies> {
         self.checked_view("private").map(PrivateCookies)
     }
@@ -742,9 +747,11 @@ impl SignedCookies {
 ///
 /// Values are opaque to the client and authenticated (AES-256-GCM), which is
 /// what a session identifier or a flash message wants.
+#[cfg(feature = "private-cookies")]
 #[derive(Debug, Clone)]
 pub struct PrivateCookies(CookieView);
 
+#[cfg(feature = "private-cookies")]
 impl PrivateCookies {
     /// A cookie that decrypts and authenticates, or `None`.
     pub fn get(&self, name: &str) -> Option<Cookie<'static>> {
@@ -1009,6 +1016,7 @@ mod tests {
         assert_eq!(CookieDefaults::default(), CookieDefaults::SECURE);
     }
 
+    #[cfg(feature = "private-cookies")]
     #[test]
     fn a_signed_write_is_qualified_like_a_plain_one() {
         let cookies = keyed();
@@ -1139,6 +1147,7 @@ mod tests {
         assert_eq!(other.signed().get("uid"), None);
     }
 
+    #[cfg(feature = "private-cookies")]
     #[test]
     fn a_private_cookie_round_trips_and_hides_its_value() {
         let cookies = keyed();
@@ -1154,6 +1163,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "private-cookies")]
     #[test]
     fn a_tampered_private_cookie_is_rejected() {
         let cookies = keyed();
@@ -1283,18 +1293,21 @@ mod tests {
     }
 
     /// Signs a value the next request reads back.
+    #[cfg(feature = "private-cookies")]
     async fn signs(cookies: Cookies) -> NoContent {
         cookies.signed().add(Cookie::new("uid", "42"));
         NoContent
     }
 
     /// Encrypts a value the next request reads back.
+    #[cfg(feature = "private-cookies")]
     async fn encrypts(cookies: Cookies) -> NoContent {
         cookies.private().add(Cookie::new("session", "s3cret"));
         NoContent
     }
 
     /// Reports what each view can see, as `signed|private|plain`.
+    #[cfg(feature = "private-cookies")]
     async fn reads_back(cookies: Cookies) -> String {
         let value = |cookie: Option<Cookie<'static>>| {
             cookie.map_or_else(|| "-".to_owned(), |cookie| cookie.value().to_owned())
@@ -1358,6 +1371,7 @@ mod tests {
     }
 
     /// The same, with a signing key registered.
+    #[cfg(feature = "private-cookies")]
     fn serve_keyed(router: Router) -> axum::Router<()> {
         AppBuilder::new()
             .profile(Profile::Test)
@@ -1395,6 +1409,7 @@ mod tests {
 
     /// The `Cookie` request header that replays every `Set-Cookie` a response
     /// carried, the way a browser would.
+    #[cfg(feature = "private-cookies")]
     fn replay(response: &Response) -> String {
         set_cookies(response)
             .iter()
@@ -1502,6 +1517,9 @@ mod tests {
         assert!(set[0].contains("Max-Age=0"), "{}", set[0]);
     }
 
+    // Gated with `private-cookies` because the shared test router mounts the
+    // encrypting handlers; signed round-trips are also covered by the unit tests.
+    #[cfg(feature = "private-cookies")]
     #[tokio::test]
     async fn a_signed_cookie_survives_a_round_trip_through_http() {
         let service = serve_keyed(Router::new().get("/sign", signs).get("/read", reads_back));
@@ -1522,6 +1540,7 @@ mod tests {
         assert_ne!(plain, "42", "the plain view must not yield the value");
     }
 
+    #[cfg(feature = "private-cookies")]
     #[tokio::test]
     async fn a_private_cookie_survives_a_round_trip_through_http() {
         let service = serve_keyed(
@@ -1542,6 +1561,7 @@ mod tests {
     }
 
     /// A response body as a string.
+    #[cfg(feature = "private-cookies")]
     async fn body_text(response: Response) -> String {
         let bytes = axum::body::to_bytes(response.into_body(), 1 << 16)
             .await
