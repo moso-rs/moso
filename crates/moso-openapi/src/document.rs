@@ -98,7 +98,9 @@ impl Default for Document {
         Self {
             openapi: default_openapi_version(),
             info: Info::default(),
-            json_schema_dialect: Some(crate::JSON_SCHEMA_DIALECT.to_owned()),
+            // Omitted by default so strict tooling accepts the document; see the
+            // note in `DocumentBuilder::new`. `.json_schema_dialect(..)` sets it.
+            json_schema_dialect: None,
             servers: Vec::new(),
             paths: IndexMap::new(),
             webhooks: IndexMap::new(),
@@ -1584,7 +1586,6 @@ mod tests {
     "title": "Shop API",
     "version": "1.4.0"
   },
-  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "servers": [
     {
       "url": "https://api.shop.example",
@@ -1670,7 +1671,6 @@ mod tests {
 info:
   title: Shop API
   version: 1.4.0
-jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
 servers:
   - url: https://api.shop.example
     description: production
