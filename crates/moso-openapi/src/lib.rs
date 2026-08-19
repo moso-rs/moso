@@ -54,6 +54,7 @@ pub mod diff;
 pub mod document;
 pub mod path;
 pub mod security;
+pub mod swagger_ui;
 pub mod ui;
 
 pub use builder::{
@@ -71,6 +72,7 @@ pub use path::{
     ParameterLocation, ParameterStyle, PathItem, Response,
 };
 pub use security::{ApiKeyLocation, OAuthFlow, OAuthFlows, SecurityRequirement, SecurityScheme};
+pub use swagger_ui::SwaggerUi;
 pub use ui::{DocsUi, Theme};
 
 pub use moso_schema::json_schema::{SchemaGenerator, SchemaNode, SchemaRef};

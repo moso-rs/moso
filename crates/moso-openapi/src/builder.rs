@@ -1759,7 +1759,14 @@ impl DocumentBuilder {
     pub fn new() -> Self {
         Self {
             info: Info::default(),
-            json_schema_dialect: Some(crate::JSON_SCHEMA_DIALECT.to_owned()),
+            // Omitted from the emitted document by default. The OpenAPI 3.1
+            // default dialect is the OAS base (2020-12 *plus* the OAS
+            // vocabulary), so declaring bare 2020-12 makes strict tooling -
+            // Swagger UI among them - refuse the document. When the field is
+            // absent every consumer applies the correct default; set it
+            // explicitly with `.json_schema_dialect(..)` if a document genuinely
+            // conforms to a different dialect.
+            json_schema_dialect: None,
             servers: Vec::new(),
             tags: IndexMap::new(),
             security: Vec::new(),
