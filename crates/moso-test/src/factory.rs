@@ -562,11 +562,11 @@ impl Faker {
     /// assert!(!Faker::new(Seed::new(1)).first_name().is_empty());
     /// ```
     pub fn first_name(&mut self) -> &'static str {
-        // Deref the chosen `&&str` to the `&'static str` itself. Written out
-        // rather than left to return-position coercion, which rustc 1.94 (the
-        // MSRV) resolves the other way - it infers `T = str`, an unsized slice
-        // element - and rejects. The `*` fixes `T = &str` for every toolchain.
-        *self.one_of(FIRST_NAMES)
+        // The turbofish pins `T = &str`. Without it, rustc 1.94 (the MSRV)
+        // infers `T = str` - an unsized slice element - from the return type and
+        // rejects; later toolchains resolve it correctly. Return-position
+        // coercion then turns the `&&str` into the `&'static str` returned here.
+        self.one_of::<&str>(FIRST_NAMES)
     }
 
     /// A surname, lower-case.
@@ -576,7 +576,7 @@ impl Faker {
     /// assert!(!Faker::new(Seed::new(1)).last_name().is_empty());
     /// ```
     pub fn last_name(&mut self) -> &'static str {
-        *self.one_of(LAST_NAMES)
+        self.one_of::<&str>(LAST_NAMES)
     }
 
     /// A full name, capitalised.
@@ -658,7 +658,7 @@ impl Faker {
     /// assert!(!Faker::new(Seed::new(1)).word().is_empty());
     /// ```
     pub fn word(&mut self) -> &'static str {
-        *self.one_of(WORDS)
+        self.one_of::<&str>(WORDS)
     }
 
     /// `count` words, space separated.

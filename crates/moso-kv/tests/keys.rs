@@ -78,9 +78,10 @@ fn part(rng: &mut Rng) -> String {
     let pieces = 1 + rng.below(5);
     let mut out = String::new();
     for _ in 0..pieces {
-        // Deref to the `&str` (as the other `pick` sites do): under the 1.94 MSRV,
-        // return-position inference otherwise picks `T = str` and rejects the call.
-        out.push_str(*rng.pick(ALPHABET));
+        // The turbofish pins `T = &str`; under the 1.94 MSRV, inference otherwise
+        // picks `T = str` and rejects the call. Deref coercion then hands
+        // `push_str` the `&str` it wants.
+        out.push_str(rng.pick::<&str>(ALPHABET));
     }
     out
 }
