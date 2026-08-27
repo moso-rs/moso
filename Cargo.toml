@@ -222,6 +222,13 @@ ulid = { version = "3.0.0", features = ["serde"] }
 # ── model layer ─────────────────────────────────────────────────────────────
 regex = "1.13.1"
 unicode-segmentation = "1.13.3"
+# `url` pulls `idna`, whose `idna_adapter` selects its Unicode backend by version:
+# 1.2.x hard-wires ICU4X (≈17 crates: icu_*, zerovec, yoke, litemap, …); 1.1.x is
+# the older, equally-correct unicode-rs UTS-46 implementation. `Cargo.lock` pins
+# `idna_adapter = 1.1.0` on purpose to keep the ICU stack out of every build
+# (default 156→141, full 309→292) with no change to the public `Url` type. IDNA is
+# fully preserved; it runs only at URL-parse time, never on the request hot path.
+# DO NOT `cargo update -p idna_adapter` — a bare bump silently re-inflates by ~17.
 url = "2.5.8"
 email_address = "0.2.9"
 uuid = { version = "1.24.0", features = ["v4", "v7", "serde"] }

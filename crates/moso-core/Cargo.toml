@@ -21,16 +21,29 @@ default = ["openapi", "tracing"]
 # never feature-dependent. This feature only controls whether the /docs,
 # /openapi.json and /openapi.yaml routes are MOUNTED.
 openapi = []
-# Which documentation-UI route `moso-core` mounts alongside `/docs`. Each
-# forwards to the matching `moso-openapi` feature; all three render the one
-# embedded, network-free UI (`moso_openapi::ui`), because vendoring three real
-# bundles would add megabytes of third-party JavaScript to every binary. `scalar`
-# is the default `/docs` UI and needs no extra route; `redoc` additionally mounts
-# `/redoc` and `swagger-ui` additionally mounts `/swagger`. All three are gated
-# on `openapi` at mount time and on `http.expose_docs` at runtime.
+# `/docs` serves the real, self-hosted Swagger UI by default (ADR-0019); these
+# features add Moso's own compact renderer (`moso_openapi::ui`) at extra routes:
+# `redoc` mounts it at `/redoc`, `swagger-ui` at `/swagger`, `scalar` is a no-op
+# kept for compatibility. All are gated on `openapi` at mount time and on
+# `http.expose_docs` at runtime.
 scalar = ["moso-openapi/scalar"]
 redoc = ["moso-openapi/redoc"]
 swagger-ui = ["moso-openapi/swagger-ui"]
+# Swap the default `/docs` from the vendored Swagger UI bundle back to Moso's own
+# compact, network-free renderer — smaller binary, no third-party JS, at the cost
+# of the familiar Swagger UI (ADR-0019). OFF by default. Implies `openapi`, since
+# there is nothing to render without it.
+lean-docs = ["openapi"]
+# The TOML config-file layers (`config/{profile}.toml`, `config/default.toml`)
+# and `TomlSource`. OFF by default (RFC-0001): the env, CLI-arg, `.env` and
+# `#[config(default)]` layers configure an application without it, and dropping
+# `toml` removes 6 crates from the default tree. `moso new` turns it on.
+config-file = ["dep:toml"]
+# Encrypted (`private`) cookies: `Cookies::private`, `try_private` and the
+# `PrivateCookies` view. OFF by default (RFC-0001) — the documented cookie
+# default is SIGNED (HMAC-SHA256 + HKDF), always on; encrypted cookies are extra
+# and pull the ~10-crate AES-GCM stack. Turn on to use `.private()`.
+private-cookies = ["cookie/private"]
 # Whether the default middleware stack installs TraceLayer + request-id spans.
 # Internal-only: it pulls no new crate (it is all `tracing` macros), which is why
 # it can stay on by default without touching the rule-6 crate budget.
@@ -91,7 +104,7 @@ moso-schema.workspace = true
 arc-swap.workspace = true
 axum.workspace = true
 bytes.workspace = true
-cookie = { workspace = true, features = ["signed", "private", "key-expansion"] }
+cookie = { workspace = true, features = ["signed", "key-expansion"] }
 dotenvy.workspace = true
 form_urlencoded.workspace = true
 futures-util.workspace = true
@@ -113,7 +126,7 @@ serde_path_to_error.workspace = true
 serde_urlencoded.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["signal"] }
-toml.workspace = true
+toml = { workspace = true, optional = true }
 tower.workspace = true
 tower-http.workspace = true
 tracing.workspace = true

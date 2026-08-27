@@ -74,8 +74,8 @@
 //! | 2 | command-line flags | [`CliSource`] |
 //! | 3 | environment variables | [`EnvSource`] |
 //! | 4 | `.env`, in `dev` and `test` only | [`DotEnvSource`] |
-//! | 5 | `config/{profile}.toml` | [`TomlSource`] |
-//! | 6 | `config/default.toml` | [`TomlSource`] |
+//! | 5 | `config/{profile}.toml` | `TomlSource` |
+//! | 6 | `config/default.toml` | `TomlSource` |
 //! | 7 | `#[config(profile(..))]` | [`FieldSpec::profile_default`] |
 //! | 8 | `#[config(default = ..)]` | [`FieldSpec::default_value`] |
 //!
@@ -113,6 +113,7 @@ pub mod source;
 pub mod value;
 
 use std::collections::BTreeSet;
+#[cfg(feature = "config-file")]
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -121,9 +122,11 @@ use crate::error::{BootError, BootErrors, Error, Result};
 pub use crate::config::secret::{
     FileSecretProvider, REDACTED, SecretBytes, SecretProvider, SecretRef, SecretString, SecretValue,
 };
+#[cfg(feature = "config-file")]
+pub use crate::config::source::TomlSource;
 pub use crate::config::source::{
     CliSource, ConfigSource, DOTENV_FILE, DefaultsSource, DotEnvSource, EnvSource, MapSource,
-    OverrideSource, TomlSource, WELL_KNOWN_ALIASES,
+    OverrideSource, WELL_KNOWN_ALIASES,
 };
 pub use crate::config::value::{
     Coerce, CoerceError, ConfigKey, ConfigValue, DISPLAY_WIDTH, FALSY, Origin, RawValue, TRUTHY,
@@ -888,6 +891,7 @@ impl ConfigLoader {
     /// As [`ConfigLoader::standard`].
     pub fn for_profile(profile: Profile) -> Result<Self> {
         let prefix = std::env::var(PREFIX_ENV).unwrap_or_default();
+        #[cfg(feature = "config-file")]
         let directory =
             std::env::var(CONFIG_DIR_ENV).map_or_else(|_| PathBuf::from(CONFIG_DIR), PathBuf::from);
 
@@ -901,12 +905,18 @@ impl ConfigLoader {
         if profile.loads_dotenv() {
             sources.push(Box::new(DotEnvSource::discover()));
         }
-        sources.push(Box::new(TomlSource::load(
-            directory.join(profile.config_file_name()),
-        )?));
-        sources.push(Box::new(TomlSource::load(
-            directory.join(DEFAULT_CONFIG_FILE),
-        )?));
+        // The TOML file layers (5 and 6) exist only with the `config-file`
+        // feature (RFC-0001); the env / CLI / `.env` / defaults layers configure
+        // an application without them.
+        #[cfg(feature = "config-file")]
+        {
+            sources.push(Box::new(TomlSource::load(
+                directory.join(profile.config_file_name()),
+            )?));
+            sources.push(Box::new(TomlSource::load(
+                directory.join(DEFAULT_CONFIG_FILE),
+            )?));
+        }
 
         Ok(Self {
             sources,
@@ -1513,6 +1523,7 @@ mod tests {
 
     /// The acceptance criterion: one key set at all eight levels resolves to
     /// the highest, and to the next one down as each is removed in turn.
+    #[cfg(feature = "config-file")]
     #[test]
     fn the_documented_precedence_holds_at_every_level() {
         let spec = FieldSpec::new("log", "String")
@@ -1742,6 +1753,7 @@ mod tests {
         assert_eq!(errors.len(), 1);
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn the_consulted_sources_are_listed_in_order_with_their_availability() {
         let loader = ConfigLoader::from_sources([

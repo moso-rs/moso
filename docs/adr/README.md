@@ -44,6 +44,7 @@ Deciders: names
 | [0016](0016-battery-routes-documentation-and-boot-check-boundary.md) | Battery-mounted routes stay `x-moso-undocumented` with an empty boot check; the copy-out tier is the documented answer | Accepted | Low - closed by `moso new --auth` or a macro-free `#[endpoint]` |
 | [0017](0017-moso-auth-seams-to-the-application.md) | Four seams where `moso-auth` hands a concern to the application (throttle, session cookie, i18n, mail) | Accepted | Low per seam; each moves only under its own RFC |
 | [0018](0018-mit-relicence.md) | `MIT`, superseding the AGPL relicence - adoption over source protection | Accepted | One-way: tightening back to copyleft needs every contributor's assent once published |
+| [0019](0019-real-swagger-ui.md) | The default `/docs` serves the real, self-hosted Swagger UI; the compact renderer moves behind `lean-docs` | Accepted | Low - `lean-docs` restores the in-house renderer; real ReDoc is a future ADR |
 
 ## Pending decisions
 

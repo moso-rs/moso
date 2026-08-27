@@ -114,8 +114,10 @@ use crate::error::{Error, ErrorKind, Result};
 
 pub use crate::di::{Depends, Inject};
 pub use crate::extract::body::{BodyStream, Bytes, RawBody, Text, read_body_limited, read_limited};
+#[cfg(feature = "private-cookies")]
+pub use crate::extract::cookies::PrivateCookies;
 pub use crate::extract::cookies::{
-    Cookie, CookieDefaults, CookieJar, CookieKey, Cookies, PrivateCookies, SameSite, SignedCookies,
+    Cookie, CookieDefaults, CookieJar, CookieKey, Cookies, SameSite, SignedCookies,
     jar_from_headers,
 };
 pub use crate::extract::form::{Form, TRUTHY_FORM_VALUES, is_truthy};

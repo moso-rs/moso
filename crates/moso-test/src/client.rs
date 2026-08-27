@@ -631,7 +631,7 @@ impl RequestBuilder {
     /// # Errors
     ///
     /// A connection failure, a timeout, or a response the harness could not read.
-    pub async fn try_send(self) -> Result<TestResponse, SendFailure> {
+    pub async fn try_send(self) -> Result<TestResponse, Box<SendFailure>> {
         let url = self.url();
         let mut headers = self.client.inner.headers.clone();
         for (name, value) in self.headers.iter() {
@@ -702,12 +702,12 @@ impl RequestBuilder {
                 }
                 Ok(response)
             }
-            Err(message) => Err(SendFailure {
+            Err(message) => Err(Box::new(SendFailure {
                 request: record,
                 message,
                 elapsed,
                 request_id: self.request_id.clone(),
-            }),
+            })),
         }
     }
 

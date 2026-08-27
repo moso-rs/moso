@@ -62,7 +62,10 @@ base64 = "0.22"
 sha2 = "0.10"
 hmac = "0.12"
 subtle = "2.6"
-getrandom = "0.3"
+# `getrandom.workspace = true` (0.4), not a local `= "0.3"` pin: the workspace
+# declares each third-party version exactly once, and moso-core already uses 0.4.
+# The `getrandom::fill` call sites are API-compatible across 0.3/0.4.
+getrandom.workspace = true
 cookie = { version = "0.18", features = ["percent-encode"] }
 
 # ── cryptography for JWT, API keys and TOTP ─────────────────────────────────

@@ -30,6 +30,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::config::value::{ConfigKey, ConfigValue, Origin, RawValue};
+#[cfg(feature = "config-file")]
 use crate::error::{Error, Result};
 
 /// One place configuration values come from.
@@ -39,7 +40,7 @@ use crate::error::{Error, Result};
 /// source — Vault, AWS Parameter Store, a database table — a first-class
 /// citizen rather than a fork.
 ///
-/// The built-in sources are [`EnvSource`], [`DotEnvSource`], [`TomlSource`],
+/// The built-in sources are [`EnvSource`], [`DotEnvSource`], `TomlSource`,
 /// [`DefaultsSource`] and [`MapSource`]; implement this to add another.
 ///
 /// ```
@@ -569,6 +570,7 @@ impl ConfigSource for DotEnvSource {
 // ---------------------------------------------------------------------------
 
 /// A TOML file.
+#[cfg(feature = "config-file")]
 #[derive(Debug)]
 pub struct TomlSource {
     path: PathBuf,
@@ -577,6 +579,7 @@ pub struct TomlSource {
     label: String,
 }
 
+#[cfg(feature = "config-file")]
 impl TomlSource {
     /// Load `path`, treating absence as an empty source rather than an error.
     ///
@@ -656,6 +659,7 @@ impl TomlSource {
 }
 
 /// Walk the parsed table by segment.
+#[cfg(feature = "config-file")]
 fn walk<'a>(root: &'a toml::Value, key: &ConfigKey) -> Option<&'a toml::Value> {
     let mut current = root;
     for segment in key.segments() {
@@ -665,6 +669,7 @@ fn walk<'a>(root: &'a toml::Value, key: &ConfigKey) -> Option<&'a toml::Value> {
 }
 
 /// Convert a parsed TOML value into the loader's currency.
+#[cfg(feature = "config-file")]
 fn from_toml(value: &toml::Value) -> RawValue {
     match value {
         toml::Value::String(text) => RawValue::String(text.clone()),
@@ -685,6 +690,7 @@ fn from_toml(value: &toml::Value) -> RawValue {
 }
 
 /// Flatten a table into dotted keys, leaves only.
+#[cfg(feature = "config-file")]
 fn flatten(prefix: &ConfigKey, value: &toml::Value, out: &mut Vec<ConfigKey>) {
     match value {
         toml::Value::Table(table) => {
@@ -698,6 +704,7 @@ fn flatten(prefix: &ConfigKey, value: &toml::Value, out: &mut Vec<ConfigKey>) {
 }
 
 /// The 1-based line containing byte offset `offset`.
+#[cfg(feature = "config-file")]
 fn line_of(text: &str, offset: usize) -> u32 {
     let clamped = offset.min(text.len());
     let lines = text[..clamped]
@@ -715,6 +722,7 @@ fn line_of(text: &str, offset: usize) -> u32 {
 /// `[[array]]` headers (as a table for line purposes) and `key = value`; a
 /// value inside an inline table gets no line, which is honest — it does not
 /// have one of its own.
+#[cfg(feature = "config-file")]
 fn index_lines(text: &str) -> BTreeMap<String, u32> {
     let mut lines = BTreeMap::new();
     let mut table = String::new();
@@ -754,6 +762,7 @@ fn index_lines(text: &str) -> BTreeMap<String, u32> {
     lines
 }
 
+#[cfg(feature = "config-file")]
 impl ConfigSource for TomlSource {
     fn name(&self) -> &str {
         &self.label
@@ -1202,10 +1211,12 @@ mod tests {
 
     // ── toml ─────────────────────────────────────────────────────────────
 
+    #[cfg(feature = "config-file")]
     fn toml_source(text: &str) -> TomlSource {
         TomlSource::from_str_labelled("config/production.toml", text).unwrap()
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn toml_walks_the_table_by_segment() {
         let source = toml_source("name = \"shop\"\n\n[database]\nmax_connections = 20\n");
@@ -1220,6 +1231,7 @@ mod tests {
         assert!(source.get(&key("database.missing")).is_none());
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn toml_values_carry_their_line() {
         let source = toml_source("name = \"shop\"\n\n[database]\nmax_connections = 20\n");
@@ -1233,12 +1245,14 @@ mod tests {
         assert_eq!(source.line_of(&key("database.max_connections")), Some(4));
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn toml_line_indexing_skips_comments_and_blank_lines() {
         let text = "# a comment\n\n[server]\n# another\nbind = \"0.0.0.0:3000\"\n";
         assert_eq!(toml_source(text).line_of(&key("server.bind")), Some(5));
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn toml_flattens_to_leaf_keys_only() {
         let source = toml_source("name = \"shop\"\n[database]\nurl = \"x\"\npool = 5\n");
@@ -1254,6 +1268,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn toml_arrays_and_nested_tables_survive_the_conversion() {
         let source = toml_source("proxies = [\"10.0.0.0/8\", \"127.0.0.1/32\"]\n");
@@ -1266,6 +1281,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn a_missing_toml_file_is_an_empty_source_not_an_error() {
         let source = TomlSource::load("/nonexistent/moso/config/production.toml").unwrap();
@@ -1274,12 +1290,14 @@ mod tests {
         assert!(source.get(&key("name")).is_none());
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn a_malformed_toml_file_reports_its_line() {
         let error = TomlSource::from_str_labelled("config/bad.toml", "name = \n").unwrap_err();
         assert!(error.to_string().contains("config/bad.toml"), "{error}");
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn byte_offsets_become_one_based_lines() {
         let text = "a\nbb\nccc\n";
@@ -1312,6 +1330,7 @@ mod tests {
         assert!(!DefaultsSource::base_defaults().available());
     }
 
+    #[cfg(feature = "config-file")]
     #[test]
     fn sources_are_object_safe() {
         let sources: Vec<Box<dyn ConfigSource>> = vec![

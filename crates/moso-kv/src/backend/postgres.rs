@@ -768,7 +768,7 @@ fn from_hex(text: &str) -> Option<Bytes> {
         return None;
     }
     let mut out = Vec::with_capacity(bytes.len() / 2);
-    for pair in bytes.chunks_exact(2) {
+    for pair in bytes.as_chunks::<2>().0 {
         let high = char::from(pair[0]).to_digit(16)?;
         let low = char::from(pair[1]).to_digit(16)?;
         out.push(u8::try_from(high * 16 + low).ok()?);

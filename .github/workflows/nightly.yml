@@ -144,7 +144,18 @@ jobs:
           tool: cargo-nextest
       # No DATABASE_URL: the data-layer tests skip, exactly as they do on a
       # laptop without Docker.
-      - run: cargo nextest run --workspace --all-features --exclude moso-ui-tests --no-fail-fast
+      #
+      # `moso` and `moso-auth` are excluded because `--all-features` turns on
+      # their `passkeys` feature, and its `webauthn-rs` 0.5 subtree links
+      # OpenSSL (ADR-0015, and the note in crates/moso-auth/Cargo.toml). The
+      # Windows runner has no libssl, so `openssl-sys` cannot build there — and
+      # the framework is rustls-only by policy, so vendoring a C OpenSSL to
+      # satisfy an off-by-default feature would be the wrong fix. `passkeys` is
+      # the only feature that pulls OpenSSL and it lives on just these two
+      # crates, so every other crate still runs here at `--all-features`; the
+      # passkey subtree itself is exercised on Linux and macOS. Drop this
+      # exclusion once webauthn-rs 0.6 (RustCrypto in place of OpenSSL) ships.
+      - run: cargo nextest run --workspace --all-features --exclude moso-ui-tests --exclude moso --exclude moso-auth --no-fail-fast
 
   # ── G12: the compile-time trend ───────────────────────────────────────────
   #
@@ -167,7 +178,12 @@ jobs:
             echo '::warning::gate G12 is unenforced: there is no xtask package, so no compile-time baseline exists. See docs/04-devex/42-compile-times.md § Measurement harness.'
             exit 0
           fi
-          cargo run -q -p xtask -- bench-compile --json > compile-bench.json
+          # `--json` takes the report path (it is an `Option<PathBuf>`, not a
+          # bare stdout flag); `--baseline ""` skips the tolerance gate so this
+          # job only *records* the number — a shared runner is too noisy to gate
+          # a regression on, which is the whole reason this is a trend line and
+          # not a required check.
+          cargo run -q -p xtask -- bench-compile --json compile-bench.json --baseline ""
           cat compile-bench.json
       - uses: actions/upload-artifact@v4
         with:

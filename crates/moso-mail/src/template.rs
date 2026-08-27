@@ -510,7 +510,7 @@ pub fn html_to_text(html: &str) -> String {
                 let skip = remainder
                     .to_ascii_lowercase()
                     .find(&close)
-                    .map_or(remainder.len(), |offset| offset);
+                    .unwrap_or(remainder.len());
                 for _ in 0..skip {
                     chars.next();
                 }

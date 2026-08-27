@@ -41,13 +41,14 @@
 //! links to `#operationId`, is operable from the keyboard alone, and lays out
 //! down to a 375 px viewport.
 //!
-//! # The `scalar`, `redoc` and `swagger-ui` cargo features
+//! # This renderer vs. the vendored Swagger UI
 //!
-//! Those features select which *route* `moso-core` mounts. All of them render
-//! this UI. Vendoring the real Scalar, ReDoc or Swagger UI bundles would add
-//! megabytes of third-party JavaScript to every Moso binary; shipping one good
-//! renderer we control is the better trade, and it is the only version of the
-//! promise "works air-gapped" that we can actually keep.
+//! As of ADR-0019 the default `/docs` serves the *real* Swagger UI
+//! ([`crate::swagger_ui`]) — the tool users know from FastAPI — vendored and
+//! self-hosted so it stays air-gapped. This compact renderer is what the `redoc`
+//! and `swagger-ui` routes mount, and what the `lean-docs` feature puts back at
+//! `/docs` for builds that want a smaller binary with no third-party JavaScript.
+//! Both are network-free; the difference is binary size versus familiarity.
 
 /// Where the UI fetches the document from, unless told otherwise.
 pub const DEFAULT_SPEC_URL: &str = "/openapi.json";

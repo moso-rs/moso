@@ -5,7 +5,6 @@
     "description": "The Moso tutorial application. Posts live in SQLite through Moso's own ORM; the example creates a fresh database on every start.",
     "version": "0.0.1"
   },
-  "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "servers": [
     {
       "url": "http://localhost:3000",

@@ -225,7 +225,7 @@ fn sha256(message: &[u8]) -> [u8; 32] {
     }
     padded.extend_from_slice(&bit_len.to_be_bytes());
 
-    for block in padded.chunks_exact(64) {
+    for block in padded.as_chunks::<64>().0 {
         let mut w = [0_u32; 64];
         for (index, word) in w.iter_mut().take(16).enumerate() {
             let at = index * 4;
